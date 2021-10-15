@@ -345,13 +345,17 @@ class Gui(Tk):
             for item in self.class_list:
                 os.mkdir(os.path.join(self.output_path, item))
 
-
             self.images_dict = {item : [[], tuple()] for item in self.class_list}
-            image_names = os.listdir(self.input_path)
+            
+            image_names_list = os.listdir(self.input_path)
+            image_names = []
+            for i in range(len(image_names_list)):
+                if image_names_list[i].endswith('.png') or image_names_list[i].endswith('.jpeg') or image_names_list[i].endswith('.jpg') or image_names_list[i].endswith('.tiff'):
+                    image_names.append(image_names_list[i])
+
             self.images_dict.update({'current':[image_names, (0,) if image_names else tuple()]})
 
             self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
-
 
     def save(self):
         self.dir_var = StringVar()
