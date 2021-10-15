@@ -16,6 +16,9 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+def is_image(image_name):
+    return image_name.endswith('.png') or image_name.endswith('.jpg') or image_name.endswith('.bmp') or image_name.endswith('.jpeg') or image_name.endswith('.tiff')
+
 class Setting(Toplevel):
     def __init__(self, parent, input_var, output_var, class_var, statu_var):
         Toplevel.__init__(self, parent)
@@ -377,14 +380,13 @@ class Gui(Tk):
 
 
                 self.images_dict = {item : [[], tuple()] for item in self.class_list}
-                image_names = os.listdir(self.input_path)
+                image_names = [item for item in os.listdir(self.input_path) if is_image(item)]
                 self.images_dict.update({'current':[image_names, (0,) if image_names else tuple()]})
 
                 self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
         except:
             self.core.statusbar.config(text='error!!!')
             raise
-
 
     def save(self):
         try:
