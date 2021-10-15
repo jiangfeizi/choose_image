@@ -134,6 +134,7 @@ class Core(Frame):
         self.window.pack(side=RIGHT, expand=YES, fill=BOTH)
         self.width = None
         self.height = None
+        self.is_resize = False
 
         self.init_image()
         self.show_window()
@@ -187,7 +188,7 @@ class Core(Frame):
     def show_window(self):
         image = ImageTk.getimage(self.image_tmp)
         if self.width and self.height:
-            image = image.resize((self.width, self.height), Image.ANTIALIAS)
+            image = image.resize((self.width, self.height), Image.LINEAR)
         self.image_tmp = ImageTk.PhotoImage(image)
         self.window.config(image=self.image_tmp)
 
@@ -246,7 +247,12 @@ class Core(Frame):
                 if retval == 's':
                     if self.current != 'current':
                         self.move_to(index, 'current')
-
+                if retval == 'w':
+                    if self.is_resize:
+                        self.reset_size()
+                    else:
+                        self.set_size()
+                    self.is_resize = not self.is_resize
                 if retval == 'd':
                     if index+1< len(self.images_dict[self.current][0]):
                         self.listbox.select_clear(0, END)
