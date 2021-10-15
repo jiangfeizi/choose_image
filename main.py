@@ -7,6 +7,15 @@ import shutil
 from tkinter.messagebox import *
 import pickle
 
+import sys
+
+def resource_path(relative_path):
+    if getattr(sys, 'frozen', False): 
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
 class Setting(Toplevel):
     def __init__(self, parent, input_var, output_var, class_var, statu_var):
         Toplevel.__init__(self, parent)
@@ -285,7 +294,7 @@ class Gui(Tk):
     def __init__(self):
         Tk.__init__(self)
         self.title('images')
-        self.iconbitmap('favicon.ico')
+        self.iconbitmap(resource_path('res/favicon.ico'))
 
         menubar = Menu(self)
         self.core = Core(self)
