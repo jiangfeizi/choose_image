@@ -129,7 +129,6 @@ class Core(Frame):
         self.init_image()
         self.show_window()
 
-
     def init_image(self):
         self.image_tmp = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
 
@@ -184,24 +183,33 @@ class Core(Frame):
         self.window.config(image=self.image_tmp)
 
     def toggle(self, current):
-        self.current = current
-        self.init_listbox(self.images_dict[self.current])
-        self.update()
+        try:
+            self.current = current
+            self.init_listbox(self.images_dict[self.current])
+            self.update()
+        except:
+            self.statusbar.config(text='error!!!')
+            raise
+
 
     def vertical_str(self, str):
         return '\n'.join(list(str))
 
     def update(self):
-        index = self.listbox.curselection()
-        self.images_dict[self.current][1] = index
-        if index:
-            self.statusbar.config(text='进度：{}/{}'.format(index[0] + 1, len(self.images_dict[self.current][0])))
-            image_name = self.listbox.get(index)
-            self.set_image(image_name)
-        else:
-            self.statusbar.config(text='进度：')
-            self.init_image()
-        self.show_window()
+        try:
+            index = self.listbox.curselection()
+            self.images_dict[self.current][1] = index
+            if index:
+                self.statusbar.config(text='进度：{}/{}'.format(index[0] + 1, len(self.images_dict[self.current][0])))
+                image_name = self.listbox.get(index)
+                self.set_image(image_name)
+            else:
+                self.statusbar.config(text='进度：')
+                self.init_image()
+            self.show_window()
+        except:
+            self.statusbar.config(text='error!!!')
+            raise
 
     def init_listbox(self, value):
         self.listbox.delete(0, END)
@@ -217,28 +225,32 @@ class Core(Frame):
             self.listbox.activate(index)
 
     def event(self, event):
-        retval = event.char
-        index = self.listbox.curselection()
-        if index:
-            index = index[0]
-            if retval == 'a':
-                if index-1>= 0:
-                    self.listbox.select_clear(0, END)
-                    self.set_focus(index-1)
-            if retval == 's':
-                if self.current != 'current':
-                    self.move_to(index, 'current')
+        try:
+            retval = event.char
+            index = self.listbox.curselection()
+            if index:
+                index = index[0]
+                if retval == 'a':
+                    if index-1>= 0:
+                        self.listbox.select_clear(0, END)
+                        self.set_focus(index-1)
+                if retval == 's':
+                    if self.current != 'current':
+                        self.move_to(index, 'current')
 
-            if retval == 'd':
-                if index+1< len(self.images_dict[self.current][0]):
-                    self.listbox.select_clear(0, END)
-                    self.set_focus(index+1)
-            for idx, cl in enumerate(self.class_list):
-                if retval == str(idx+1):
-                    if self.current != self.class_list[idx]:
-                        self.move_to(index, cl)
-            
-            self.listbox.event_generate('<<ListboxSelect>>')
+                if retval == 'd':
+                    if index+1< len(self.images_dict[self.current][0]):
+                        self.listbox.select_clear(0, END)
+                        self.set_focus(index+1)
+                for idx, cl in enumerate(self.class_list):
+                    if retval == str(idx+1):
+                        if self.current != self.class_list[idx]:
+                            self.move_to(index, cl)
+                
+                self.listbox.event_generate('<<ListboxSelect>>')
+        except:
+            self.statusbar.config(text='error!!!')
+            raise
 
     def move_to(self, idx, cl):
         item = self.listbox.get(idx)
@@ -311,66 +323,76 @@ class Gui(Tk):
         showinfo('help', msg)
 
     def init_from_file(self):
-        file_path = askopenfilename()
-        if file_path:
-            with open(file_path,'rb') as fp:
-                obj = pickle.load(fp)
+        try:
+            file_path = askopenfilename()
+            if file_path:
+                with open(file_path,'rb') as fp:
+                    obj = pickle.load(fp)
 
-            self.input_path = obj['input_path']
-            self.output_path = obj['output_path']
-            self.classes_str = obj['classes_str']
-            self.images_dict = obj['images_dict']
+                self.input_path = obj['input_path']
+                self.output_path = obj['output_path']
+                self.classes_str = obj['classes_str']
+                self.images_dict = obj['images_dict']
 
-            self.input_var.set(self.input_path)
-            self.output_var.set(self.output_path)
-            self.class_var.set(self.classes_str)
+                self.input_var.set(self.input_path)
+                self.output_var.set(self.output_path)
+                self.class_var.set(self.classes_str)
 
-            self.class_list = self.classes_str.split()
+                self.class_list = self.classes_str.split()
 
-            self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
+                self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
+        except:
+            self.core.statusbar.config(text='error!!!')
+            raise
 
     def init_from_setting(self):
-        statu_var = IntVar(0)
-        Setting(self, self.input_var, self.output_var, self.class_var, statu_var)
+        try:
+            statu_var = IntVar(0)
+            Setting(self, self.input_var, self.output_var, self.class_var, statu_var)
 
-        if statu_var.get():
-            self.input_path = self.input_var.get()
-            self.output_path = self.output_var.get()
-            self.classes_str = self.class_var.get()
+            if statu_var.get():
+                self.input_path = self.input_var.get()
+                self.output_path = self.output_var.get()
+                self.classes_str = self.class_var.get()
 
-            self.class_list = self.classes_str.split()
+                self.class_list = self.classes_str.split()
 
-            for item in os.listdir(self.output_path):
-                shutil.rmtree(os.path.join(self.output_path, item))
-            for item in self.class_list:
-                os.mkdir(os.path.join(self.output_path, item))
+                for item in self.class_list:
+                    os.mkdir(os.path.join(self.output_path, item))
 
 
-            self.images_dict = {item : [[], tuple()] for item in self.class_list}
-            image_names = os.listdir(self.input_path)
-            self.images_dict.update({'current':[image_names, (0,) if image_names else tuple()]})
+                self.images_dict = {item : [[], tuple()] for item in self.class_list}
+                image_names = os.listdir(self.input_path)
+                self.images_dict.update({'current':[image_names, (0,) if image_names else tuple()]})
 
-            self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
+                self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
+        except:
+            self.core.statusbar.config(text='error!!!')
+            raise
 
 
     def save(self):
-        self.dir_var = StringVar()
-        self.file_var = StringVar()
-        statu_var = IntVar(0)
+        try:
+            self.dir_var = StringVar()
+            self.file_var = StringVar()
+            statu_var = IntVar(0)
 
-        Save(self, self.dir_var, self.file_var, statu_var)
-        if statu_var.get():
-            obj = {
-                    'input_path':self.input_path,
-                    'output_path':self.output_path,
-                    'classes_str':self.classes_str,
-                    'images_dict':self.images_dict
-                    }
-            
-            dir_path = self.dir_var.get()
-            file_name = self.file_var.get()
-            with open(os.path.join(dir_path, file_name),'wb') as fp:
-                pickle.dump(obj, fp)
+            Save(self, self.dir_var, self.file_var, statu_var)
+            if statu_var.get():
+                obj = {
+                        'input_path':self.input_path,
+                        'output_path':self.output_path,
+                        'classes_str':self.classes_str,
+                        'images_dict':self.images_dict
+                        }
+                
+                dir_path = self.dir_var.get()
+                file_name = self.file_var.get()
+                with open(os.path.join(dir_path, file_name),'wb') as fp:
+                    pickle.dump(obj, fp)
+        except:
+            self.core.statusbar.config(text='error!!!')
+            raise
 
 if __name__ == '__main__':
     one = Gui()
