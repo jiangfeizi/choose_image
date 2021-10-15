@@ -273,6 +273,7 @@ class Gui(Tk):
     def __init__(self):
         Tk.__init__(self)
         self.title('images')
+        self.iconbitmap('favicon.ico')
 
         menubar = Menu(self)
         self.core = Core(self)
