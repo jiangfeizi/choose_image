@@ -176,7 +176,9 @@ class Core(Frame):
                 image_path = os.path.join(self.input_path, image_name)
             else:
                 image_path = os.path.join(self.output_path, self.current, image_name)
-            os.remove(image_path)
+            
+            if os.path.exists(image_path):
+                os.remove(image_path)
 
             if index == len(self.images_dict[self.current][0]):
                 if index == 0:
@@ -194,14 +196,6 @@ class Core(Frame):
 
     def init_image(self):
         self.image_ori = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
-
-    def set_image(self, image_name):
-        if self.current == 'current':
-            image_path = os.path.join(self.input_path, image_name)
-        else:
-            image_path = os.path.join(self.output_path, self.current, image_name)
-        
-        self.image_ori = ImageTk.PhotoImage(Image.open(image_path))
 
     def init(self, input_path, output_path, class_list, images_dict):
         self.current = 'current'
@@ -271,9 +265,19 @@ class Core(Frame):
             index = self.listbox.curselection()
             self.images_dict[self.current][1] = index
             if index:
-                self.statusbar.config(text='进度：{}/{}'.format(index[0] + 1, len(self.images_dict[self.current][0])))
                 image_name = self.listbox.get(index)
-                self.set_image(image_name)
+
+                if self.current == 'current':
+                    image_path = os.path.join(self.input_path, image_name)
+                else:
+                    image_path = os.path.join(self.output_path, self.current, image_name)
+                
+                if os.path.exists(image_path):
+                    self.image_ori = ImageTk.PhotoImage(Image.open(image_path))
+                    self.statusbar.config(text='进度：{}/{}'.format(index[0] + 1, len(self.images_dict[self.current][0])))
+                else:
+                    self.image_ori = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
+                    self.statusbar.config(text='no image'.format(image_name))
             else:
                 self.statusbar.config(text='进度：')
                 self.init_image()
@@ -398,6 +402,7 @@ class Gui(Tk):
                 '''
                 
         showinfo('help', msg)
+
 
     def init_from_file(self):
         try:
