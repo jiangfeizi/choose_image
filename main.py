@@ -1,5 +1,3 @@
-from numpy.core.fromnumeric import var
-from utils import *
 from tkinter import *
 from tkinter.filedialog import askdirectory, askopenfilename
 from PIL import Image, ImageTk
@@ -9,6 +7,38 @@ import shutil
 from tkinter.messagebox import *
 import pickle
 from tkinter import ttk
+import sys
+
+
+def is_image(image_name):
+    return image_name.endswith('.png') or image_name.endswith('.jpg') or image_name.endswith('.bmp') or image_name.endswith('.jpeg') or image_name.endswith('.tiff')
+
+def resource_path(relative_path):
+    if getattr(sys, 'frozen', False): 
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+class LabelAndEntry(Frame):
+    def __init__(self, master, label, textvariable):
+        Frame.__init__(self, master)
+        self.label = Label(self, text=label)
+        self.entry = Entry(self, textvariable=textvariable)
+
+        self.label.pack(side=LEFT)
+        self.entry.pack(side=RIGHT)
+
+
+class LabelAndEntryAndButton(Frame):
+    def __init__(self, master, label, textvariable, button):
+        Frame.__init__(self, master)
+        self.label_and_entry = LabelAndEntry(self, label, textvariable)
+        self.button = Button(self, text=button)
+
+        self.label_and_entry.pack(side=LEFT)
+        self.button.pack(side=RIGHT)
+
 
 
 class Setting(Toplevel):
@@ -99,6 +129,8 @@ class Core(Frame):
 
         self.panedwindow = ttk.PanedWindow(self, orient=HORIZONTAL)
         self.panedwindow.pack(fill=BOTH, expand=True)
+
+        self.right_menu = Menu(self, tearoff=OFF)
         
         self.left_frame = Frame(self)
         self.scrollbar = Scrollbar(self.left_frame)
@@ -127,6 +159,38 @@ class Core(Frame):
 
         self.init_image()
         self.show_window()
+
+    def post_right_menu(self, event):
+        index = self.listbox.curselection()
+        if index:
+            self.right_menu.post(event.x_root, event.y_root)
+
+    def delete_item(self):
+        try:
+            index = self.listbox.curselection()
+            index = index[0]
+            self.listbox.delete(index)
+
+            image_name = self.images_dict[self.current][0].pop(index)
+            if self.current == 'current':
+                image_path = os.path.join(self.input_path, image_name)
+            else:
+                image_path = os.path.join(self.output_path, self.current, image_name)
+            os.remove(image_path)
+
+            if index == len(self.images_dict[self.current][0]):
+                if index == 0:
+                    self.images_dict[self.current][1] = tuple()
+                else:
+                    self.set_focus(index-1)
+                    self.images_dict[self.current][1] = (index-1, )
+            else:
+                self.set_focus(index)
+
+            self.listbox.event_generate('<<ListboxSelect>>')
+        except:
+            self.statusbar.config(text='error!!!')
+            raise
 
     def init_image(self):
         self.image_ori = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
@@ -163,6 +227,9 @@ class Core(Frame):
 
         self.listbox.bind('<<ListboxSelect>>', lambda event:self.update())
         self.listbox.bind('<KeyPress>', lambda event: self.event(event))
+        self.listbox.bind('<Button-3>', lambda event: self.post_right_menu(event))
+
+        self.right_menu.add_command(label='删除', command=self.delete_item)
 
         self.window.bind('<Configure>', lambda event:self.update_wind())
 

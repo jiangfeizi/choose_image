@@ -12,3 +12,6 @@ TODO:
 3.把label改为canvas。
 4.可以查看缩略图。
 5.弹窗提示错误信息。
+
+
+finally:整理代码
