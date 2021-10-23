@@ -364,6 +364,8 @@ class Gui(tk.Tk):
             self.label_class_button = []
 
             for i in self.label_output_treeview.get_children():
+                self.label_input_treeview.unbind('<Control-Key-{}>'.format(self.label_output_treeview.set(i, column=3)))
+                self.label_input_treeview.unbind('<Key-{}>'.format(self.label_output_treeview.set(i, column=3)))
                 self.label_output_treeview.delete(i)
             self.label_output_dir = dir_path
             self.label_statusbar.config(text='{}:{}'.format(self.setting.language.label_info_set_output, self.label_output_dir))
