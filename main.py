@@ -335,7 +335,7 @@ class Gui(tk.Tk):
                         images = [image for image in os.listdir(item_path) if is_image(image)]
                         self.label_output_treeview.insert('', tk.END, item, values = (item, len(images), key))
                         
-                        button = ttk.Button(self.label_button_set, text=item, width=2)
+                        button = ttk.Button(self.label_button_set, text=self.vertical_str(item), width=2)
                         button.pack(side=TOP)
                         button.config(command=lambda item=item:self.label_switch_item(item))
                         self.label_input_treeview.bind('<Control-Key-{}>'.format(key), lambda event, item=item:self.label_switch_item(item))
