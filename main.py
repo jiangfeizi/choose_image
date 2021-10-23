@@ -1,475 +1,391 @@
-from tkinter import *
-from tkinter.filedialog import askdirectory, askopenfilename
-from PIL import Image, ImageTk
-import numpy as np
+# from utils import *
+from tkinter.constants import TOP
+from PIL import ImageTk, Image
+from setting import Setting
 import os
 import shutil
-from tkinter.messagebox import *
-import pickle
-from tkinter import ttk
-import sys
 
-
-def is_image(image_name):
-    return image_name.endswith('.png') or image_name.endswith('.jpg') or image_name.endswith('.bmp') or image_name.endswith('.jpeg') or image_name.endswith('.tiff')
-
-def resource_path(relative_path):
-    if getattr(sys, 'frozen', False): 
-        base_path = sys._MEIPASS
-    else:
-        base_path = os.path.abspath(".")
-    return os.path.join(base_path, relative_path)
-
-class LabelAndEntry(Frame):
-    def __init__(self, master, label, textvariable):
-        Frame.__init__(self, master)
-        self.label = Label(self, text=label)
-        self.entry = Entry(self, textvariable=textvariable)
-
-        self.label.pack(side=LEFT)
-        self.entry.pack(side=RIGHT)
-
-
-class LabelAndEntryAndButton(Frame):
-    def __init__(self, master, label, textvariable, button):
-        Frame.__init__(self, master)
-        self.label_and_entry = LabelAndEntry(self, label, textvariable)
-        self.button = Button(self, text=button)
-
-        self.label_and_entry.pack(side=LEFT)
-        self.button.pack(side=RIGHT)
+import tkinter as tk
+import tkinter.ttk as ttk
+from tkinter.filedialog import askdirectory
+from tkinter.simpledialog import askstring
+from utils import is_image
 
 
 
-class Setting(Toplevel):
-    def __init__(self, input_var, output_var, class_var):
-        Toplevel.__init__(self)
-        self.resizable(0, 0)
-
-        self.input_var = input_var
-        self.output_var = output_var
-        self.class_var = class_var
-        self.state = False
-
-        self.first_row = LabelAndEntryAndButton(self, '输入路径', self.input_var, '路径选择')
-        self.first_row.pack()
-        self.second_row = LabelAndEntryAndButton(self, '输出路径', self.output_var, '路径选择')
-        self.second_row.pack()
-        self.third_row = LabelAndEntryAndButton(self, '　类别　', self.class_var, '　确定　')
-        self.third_row.pack()
-
-        self.first_row.button.config(command=lambda : self.choose_path(self.first_row.label_and_entry.entry))
-        self.second_row.button.config(command=lambda : self.choose_path(self.second_row.label_and_entry.entry))
-        self.third_row.button.config(command=self.ok)
-
-        self.grab_set()
-        self.focus_set()
-        self.wait_window()
-
-    def choose_path(self, entry):
-        dir_path = askdirectory()
-        if dir_path:
-            entry.delete(0, END)
-            entry.insert(END, dir_path)
-
-    def ok(self):
-        self.state = True
-        self.destroy()
-
-
-class Save(Toplevel):
-    def __init__(self, dir_var, file_var):
-        Toplevel.__init__(self)
-        self.resizable(0, 0)
-        self.dir_var = dir_var
-        self.file_var = file_var
-        self.state = False
-
-        self.first_row = LabelAndEntryAndButton(self, '输出路径', self.dir_var, '路径选择')
-        self.first_row.pack()
-        self.second_row = LabelAndEntryAndButton(self, '文件名　', self.file_var, '　确定　')
-        self.second_row.pack()
-
-        self.first_row.button.config(command=lambda : self.choose_path(self.first_row.label_and_entry.entry))
-        self.second_row.button.config(command=self.ok)
-
-        self.grab_set()
-        self.focus_set()
-        self.wait_window()
-
-    def choose_path(self, entry):
-        dir_path = askdirectory()
-        if dir_path:
-            entry.delete(0, END)
-            entry.insert(END, dir_path)
-
-    def ok(self):
-        self.state = True
-        self.destroy()
-
-
-class ButtonSet(Frame):
-    def __init__(self, parent=None):
-        Frame.__init__(self, parent)
-        self.buttons = []
-
-    def add(self, item):
-        button = Button(self, text=item)
-        self.buttons.append(button)
-        return button
-
-    def reset(self):
-        for button in self.buttons:
-            button.destroy()
-        self.buttons = []
-
-class Core(Frame):
-    def __init__(self, parent=None):
-        Frame.__init__(self, parent)
-
-        self.panedwindow = ttk.PanedWindow(self, orient=HORIZONTAL)
-        self.panedwindow.pack(fill=BOTH, expand=True)
-
-        self.right_menu = Menu(self, tearoff=OFF)
+class Gui(tk.Tk):
+    def __init__(self):
+        tk.Tk.__init__(self)
         
-        self.left_frame = Frame(self)
-        self.scrollbar = Scrollbar(self.left_frame)
-        self.listbox = Listbox(self.left_frame, relief=SUNKEN)
-        self.button_set = ButtonSet(self.left_frame)
-        self.statusbar = Label(self.left_frame, anchor='w')
+        self.setting = Setting('setting.yaml')
 
-        self.scrollbar.config(command=self.listbox.yview)                    
-        self.listbox.config(yscrollcommand=self.scrollbar.set)  
+        # 内置参数
+        ## label
+        self.label_input_dir = None
+        self.label_output_dir = None
+        self.label_class_list = []
+        self.label_class_key = [0]
+        self.label_class_button = []
 
-        self.statusbar.pack(side=BOTTOM, fill=X)
-        self.scrollbar.pack(side=RIGHT, fill=Y)   
-        self.button_set.pack(side=LEFT, fill=Y)          
-        self.listbox.pack(side=LEFT, expand=YES, fill=BOTH)
+        self.label_current = None
+        self.label_image = None
+        self.label_resize_image = None
 
-        self.window = Label(self)
+        self.notebook = ttk.Notebook(self)
+        # 三个框架
+        self.label_frame = ttk.Frame(self.notebook)
+        self.train_frame = ttk.Frame(self.notebook)
+        self.eval_frame = ttk.Frame(self.notebook)
 
-        self.left_frame.pack(side=LEFT, fill=BOTH)
-        self.window.pack(side=RIGHT, expand=YES, fill=BOTH)
-        self.width = 500
-        self.height = 500
-        self.is_resize = True
+        self.label_frame.pack(fill=tk.BOTH, expand=True)
+        self.train_frame.pack(fill=tk.BOTH, expand=True)
+        self.eval_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.panedwindow.add(self.left_frame)
-        self.panedwindow.add(self.window)
+        self.notebook.add(self.label_frame, text=self.setting.language.notebook_label)
+        self.notebook.add(self.train_frame, text=self.setting.language.notebook_train)
+        self.notebook.add(self.eval_frame, text=self.setting.language.notebook_eval)
+ 
+        self.notebook.pack(fill=tk.BOTH, expand=True)
 
-        self.init_image()
-        self.show_window()
 
-    def post_right_menu(self, event):
-        index = self.listbox.curselection()
-        if index:
-            self.right_menu.post(event.x_root, event.y_root)
+        # 界面
+        ## label界面
+        self.label_input_right_menu = tk.Menu(self.label_frame, tearoff=tk.OFF)
+        self.label_output_right_menu = tk.Menu(self.label_frame, tearoff=tk.OFF)
 
-    def delete_item(self):
-        try:
-            index = self.listbox.curselection()
-            index = index[0]
-            self.listbox.delete(index)
+        self.label_panedwindow = ttk.PanedWindow(self.label_frame, orient=tk.HORIZONTAL)
+        self.label_statusbar = ttk.Label(self.label_frame)
 
-            image_name = self.images_dict[self.current][0].pop(index)
-            if self.current == 'current':
-                image_path = os.path.join(self.input_path, image_name)
-            else:
-                image_path = os.path.join(self.output_path, self.current, image_name)
-            
-            if os.path.exists(image_path):
-                os.remove(image_path)
+        self.label_left = ttk.Frame(self.label_panedwindow)
+        self.label_window = tk.Label(self.label_panedwindow)
 
-            if index == len(self.images_dict[self.current][0]):
-                if index == 0:
-                    self.images_dict[self.current][1] = tuple()
+        self.label_left_up = ttk.Frame(self.label_left)
+        self.label_left_mid = ttk.Frame(self.label_left)
+        self.label_left_down = ttk.Frame(self.label_left)
+
+        self.label_input_button = ttk.Button(self.label_left_up)
+        self.label_input_treeview = ttk.Treeview(self.label_left_up)
+        self.label_input_scrollbar = ttk.Scrollbar(self.label_left_up)
+        self.label_button_set = ttk.Frame(self.label_left_up)
+
+        self.label_ret_button = ttk.Button(self.label_button_set)
+
+        self.label_output_button = ttk.Button(self.label_left_mid)
+        self.label_add_button = ttk.Button(self.label_left_mid)
+
+        self.label_output_treeview = ttk.Treeview(self.label_left_down)
+        self.label_output_scrollbar = ttk.Scrollbar(self.label_left_down)
+
+
+        # 配置
+        self.geometry('{}'.format(self.setting.geometry))
+
+        ## label界面配置
+        self.label_input_button.config(text=self.setting.language.label_input_button)
+        self.label_ret_button.config(text=self.vertical_str(self.setting.language.label_ret_button), width=2)
+        self.label_output_button.config(text=self.setting.language.label_output_button)
+        self.label_add_button.config(text=self.setting.language.label_add_button)
+
+        self.label_input_treeview.config(columns=(1,), show='headings')
+        self.label_input_treeview.heading(1, text=self.setting.language.label_filename)
+        self.label_output_treeview.config(columns=(1, 2, 3), show='headings')
+        self.label_output_treeview.column(1, width=80, anchor=tk.CENTER)
+        self.label_output_treeview.column(2, width=80, anchor=tk.CENTER)
+        self.label_output_treeview.column(3, width=80, anchor=tk.CENTER)
+
+        self.label_output_treeview.heading(1, text=self.setting.language.label_table_class)
+        self.label_output_treeview.heading(2, text=self.setting.language.label_table_num)
+        self.label_output_treeview.heading(3, text=self.setting.language.label_table_key)
+
+
+
+        # 布局
+        self.label_statusbar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.label_panedwindow.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        self.label_left.pack(side=tk.LEFT, fill=tk.Y)
+        self.label_window.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.label_panedwindow.add(self.label_left) #必须先pack然后add
+        self.label_panedwindow.add(self.label_window)
+
+        self.label_left_down.pack(side=tk.BOTTOM, fill=tk.X)
+        self.label_left_mid.pack(side=tk.BOTTOM, anchor=tk.W)
+        self.label_left_up.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+        self.label_button_set.pack(side=tk.LEFT, fill=tk.Y)
+        self.label_input_button.pack(side=tk.TOP, anchor=tk.W) 
+        self.label_input_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.label_input_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.label_ret_button.pack(side=tk.TOP)
+
+        self.label_output_button.pack(side=tk.LEFT)
+        self.label_add_button.pack(side=tk.LEFT)
+
+        self.label_output_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.label_output_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+
+        #事件绑定
+        self.protocol('WM_DELETE_WINDOW', self.save_setting)
+
+        ## label
+        self.label_input_right_menu.add_command(label=self.setting.language.label_menu_delete, command=self.label_delete_item_and_remove_file)
+        self.label_output_right_menu.add_command(label=self.setting.language.label_menu_delete, command=self.label_delete_class)
+        self.label_output_right_menu.add_command(label=self.setting.language.label_menu_change_key, command=self.label_change_key)
+
+        self.label_input_scrollbar.config(command=self.label_input_treeview.yview)                    
+        self.label_input_treeview.config(yscrollcommand=self.label_input_scrollbar)  
+
+        self.label_output_scrollbar.config(command=self.label_output_treeview.yview)                    
+        self.label_output_treeview.config(yscrollcommand=self.label_output_scrollbar.set)  
+
+        self.label_input_button.config(command=self.label_set_input)
+        self.label_output_button.config(command=self.label_set_output)
+        self.label_add_button.config(command=self.label_add_class)
+        self.label_ret_button.config(command=lambda item=None : self.label_switch_item(item))
+
+        self.label_input_treeview.bind('<Control-s>', lambda event, item=None:self.label_switch_item(item))
+        self.label_input_treeview.bind('<s>', lambda event, item=None:self.label_move_to_item(item))
+        self.label_input_treeview.bind('<<TreeviewSelect>>', lambda event : self.label_select_item())
+        self.label_input_treeview.bind('<Double-Button-1>', lambda event : self.label_post_input_right_menu(event))
+        self.label_output_treeview.bind('<Double-Button-1>', lambda event : self.label_post_output_right_menu(event))
+
+
+        self.label_window.bind('<Configure>', lambda event : self.label_resize_window())
+
+    def label_change_key(self):
+        label_askstring = tk.Toplevel()
+        buttons = []
+        for i in range(1, 10):
+            if not i in self.label_class_key:
+                button = ttk.Button(label_askstring, text=i, command=lambda toplevel=label_askstring, i=i: self.label_bind_key(toplevel, i))
+                button.pack()
+                buttons.append(button)
+
+        label_askstring.geometry('+{}+{}'.format(self.label_curse_x, self.label_curse_y))
+
+
+
+    def label_bind_key(self, toplevel, key):
+        item = self.label_output_treeview.focus()
+        self.label_input_treeview.bind('<Control-Key-{}>'.format(key), lambda event, item=item:self.label_switch_item(item))
+        self.label_input_treeview.bind('<Key-{}>'.format(key), lambda event, item=item:self.label_move_to_item(item))
+        self.label_output_treeview.set(item, column=3, value=key)
+        toplevel.destroy()
+
+
+    def label_move_to_item(self, item):
+        image_item = self.label_input_treeview.focus()
+        if image_item:
+            image_path = os.path.join(self.label_output_dir, self.label_current, image_item) if self.label_current else os.path.join(self.label_input_dir, image_item)
+            if self.label_current != item:
+                if item:
+                    shutil.move(image_path, os.path.join(self.label_output_dir, item, image_item))
+                    self.label_delete_item()
+                    num = self.label_output_treeview.set(item, column=2)
+                    self.label_output_treeview.set(item, column=2, value=int(num)+1)
                 else:
-                    self.set_focus(index-1)
-                    self.images_dict[self.current][1] = (index-1, )
-            else:
-                self.set_focus(index)
+                    if self.label_input_dir:
+                        shutil.move(image_path, os.path.join(self.label_input_dir, image_item))
+                        self.label_delete_item()
+                    else:
+                        self.label_statusbar.config(text='{}'.format(self.setting.language.label_error_no_input_dir))
 
-            self.listbox.event_generate('<<ListboxSelect>>')
-        except:
-            self.statusbar.config(text='error!!!')
-            raise
 
-    def init_image(self):
-        self.image_ori = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
+    def label_resize_window(self):
+        win_width = self.label_window.winfo_width()
+        win_height = self.label_window.winfo_height()
 
-    def init(self, input_path, output_path, class_list, images_dict):
-        self.current = 'current'
-        self.input_path = input_path
-        self.output_path = output_path
-        self.class_list = class_list
-        self.images_dict = images_dict
+        if self.label_image:
+            ratio = min(win_width/self.label_image.width, win_height/self.label_image.height)
+            image = self.label_image.resize((int(ratio * self.label_image.width), int(ratio * self.label_image.height)), Image.LINEAR)
+            self.resize_image = ImageTk.PhotoImage(image)
+            self.label_window.config(image=self.resize_image)
 
-        self.init_listbox(self.images_dict[self.current])
 
-        self.button_set.reset()
-        for idx, item in enumerate(self.class_list):
-            button = self.button_set.add(self.vertical_str(item))
-            button.pack(side=TOP)
-            button.bind('<Button-1>', lambda event, item=item:self.toggle(item))
-            self.listbox.bind('<Control-Key-{}>'.format(idx+1), lambda event, item=item:self.toggle(item))
+    def label_delete_item(self):
+        item = self.label_input_treeview.focus()
+        index = self.label_input_treeview.index(item)
+        all_item = self.label_input_treeview.get_children()
+        length = len(all_item)
 
-        button = self.button_set.add(self.vertical_str('返回'))
-        button.bind('<Button-1>', lambda event, item='current':self.toggle(item))
-        button.pack(side=BOTTOM)
-        self.listbox.bind('<Control-s>', lambda event, item='current':self.toggle(item))
-        self.update()
+        if index == length-1:
+            if index != 0:
+                self.label_input_treeview.selection_set(all_item[index-1])
+                self.label_input_treeview.focus(all_item[index-1])
+        else:
+            self.label_input_treeview.selection_set(all_item[index+1])
+            self.label_input_treeview.focus(all_item[index+1])
 
-        self.listbox.bind('<<ListboxSelect>>', lambda event:self.update())
-        self.listbox.bind('<KeyPress>', lambda event: self.event(event))
-        self.listbox.bind('<Button-3>', lambda event: self.post_right_menu(event))
+        self.label_input_treeview.delete(item)
 
-        self.right_menu.add_command(label='删除', command=self.delete_item)
+        if self.label_current:
+            num = self.label_output_treeview.set(self.label_current, column=2)
+            self.label_output_treeview.set(self.label_current, column=2, value=int(num)-1)
 
-        self.window.bind('<Configure>', lambda event:self.update_wind())
+        self.label_select_all()
+        return item
 
-    def update_wind(self):
-        self.width = self.window.winfo_width() - 4
-        self.height = self.window.winfo_height() - 4
-        self.show_window()
+    def label_delete_item_and_remove_file(self):
+        item = self.label_delete_item()
 
-    def set_size(self):
-        self.is_resize = True
-        self.show_window()
+        item_path = os.path.join(self.label_output_dir, self.label_current, item) if self.label_current else os.path.join(self.label_input_dir, item)
+        os.remove(item_path)
 
-    def reset_size(self):
-        self.is_resize = False
-        self.show_window()
+    def label_delete_class(self):
+        item = self.label_output_treeview.focus()
+        self.label_input_treeview.unbind('<Control-Key-{}>'.format(self.label_output_treeview.set(item, column=3)))
+        self.label_input_treeview.unbind('<Key-{}>'.format(self.label_output_treeview.set(item, column=3)))
 
-    def show_window(self):
-        image = ImageTk.getimage(self.image_ori)
-        if self.is_resize:
-            image = image.resize((self.width, self.height), Image.LINEAR)
-        self.image_tmp = ImageTk.PhotoImage(image)
-        self.window.config(image=self.image_tmp)
 
-    def toggle(self, current):
+        self.label_output_treeview.delete(item)
+        index = self.label_class_list.index(item)
+
+        self.label_class_list.pop(index)
+        self.label_class_key.pop(index+1)
+
+        self.label_class_button[index].destroy()
+        self.label_class_button.pop(index)
+
+
+        if self.label_current == item:
+            self.label_switch_item(None)
+
+    def label_select_all(self):
+        item = self.label_input_treeview.focus()
+        if item:
+            self.label_select_item()
+        else:
+            self.label_select_no()
+
+
+    def label_switch_item(self, item):
+        self.label_current = item
+        if item:
+            dir_path = os.path.join(self.label_output_dir, item)
+        else:
+            dir_path = self.label_input_dir
+
+        for i in self.label_input_treeview.get_children():
+            self.label_input_treeview.delete(i)
+        items = [item for item in os.listdir(dir_path) if is_image(item)]
+
+        if items:
+            for item in items:
+                self.label_input_treeview.insert('', tk.END, item, values=(item,))
+            self.label_input_treeview.focus_set()
+            self.label_input_treeview.selection_set(items[0])
+            self.label_input_treeview.focus(items[0])
+            self.label_select_item()
+        else:
+            self.label_select_no()
+
+    def label_select_no(self):
+        self.label_image = None
+        self.label_window.config(image='')
+        self.label_statusbar.config(text='')
+
+    def label_select_item(self):
+        item = self.label_input_treeview.focus()
+        item_path = os.path.join(self.label_output_dir, self.label_current,  item) if self.label_current else os.path.join(self.label_input_dir, item)
+
         try:
-            self.current = current
-            self.init_listbox(self.images_dict[self.current])
-            self.update()
+            self.label_image = Image.open(item_path)
         except:
-            self.statusbar.config(text='error!!!')
-            raise
+            self.label_window.config(image='')
+            self.label_statusbar.config(text='{}'.format(self.setting.language.label_error_open_image))
+        else:
+            self.label_resize_window()
+            self.label_statusbar.config(text='{}：{}/{}'.format(self.setting.language.label_progress, self.label_input_treeview.index(item) + 1, 
+                                len(self.label_input_treeview.get_children())))
 
 
     def vertical_str(self, str):
         return '\n'.join(list(str))
 
-    def update(self):
-        try:
-            index = self.listbox.curselection()
-            self.images_dict[self.current][1] = index
-            if index:
-                image_name = self.listbox.get(index)
+    def label_post_input_right_menu(self, event):
+        if self.label_input_treeview.focus():
+            self.label_input_right_menu.post(event.x_root, event.y_root)
 
-                if self.current == 'current':
-                    image_path = os.path.join(self.input_path, image_name)
-                else:
-                    image_path = os.path.join(self.output_path, self.current, image_name)
-                
-                if os.path.exists(image_path):
-                    self.image_ori = ImageTk.PhotoImage(Image.open(image_path))
-                    self.statusbar.config(text='进度：{}/{}'.format(index[0] + 1, len(self.images_dict[self.current][0])))
-                else:
-                    self.image_ori = ImageTk.PhotoImage(Image.fromarray(np.ones((500,500), dtype=np.uint8) * 255))
-                    self.statusbar.config(text='no image'.format(image_name))
+    def label_post_output_right_menu(self, event):
+        if self.label_output_treeview.focus():
+            self.label_output_right_menu.post(event.x_root, event.y_root)
+
+            self.label_curse_x = event.x_root
+            self.label_curse_y = event.y_root
+
+        
+    def label_add_class(self):
+        if self.label_output_dir:
+            if len(self.label_class_list) < 9:
+                item = askstring('{}'.format(self.setting.language.label_info_output_tip), '{}'.format(self.setting.language.label_info_output_tip))
+                if item:
+                    item = item.strip()
+                    if not item in self.label_class_list:
+                        self.label_class_list.append(item)
+                        item_path = os.path.join(self.label_output_dir, item)
+                        if not os.path.exists(item_path):
+                            os.mkdir(item_path)
+
+                        key = max(self.label_class_key)+1
+                        self.label_class_key.append(key)
+                        
+                        images = [image for image in os.listdir(item_path) if is_image(image)]
+                        self.label_output_treeview.insert('', tk.END, item, values = (item, len(images), key))
+                        
+                        button = ttk.Button(self.label_button_set, text=item, width=2)
+                        button.pack(side=TOP)
+                        button.config(command=lambda item=item:self.label_switch_item(item))
+                        self.label_input_treeview.bind('<Control-Key-{}>'.format(key), lambda event, item=item:self.label_switch_item(item))
+                        self.label_input_treeview.bind('<Key-{}>'.format(key), lambda event, item=item:self.label_move_to_item(item))
+                        self.label_class_button.append(button)
+
+                        self.label_input_treeview.focus_set()
+
+                    else:
+                        self.label_statusbar.config(text='{}'.format(self.setting.language.label_error_multi_create))
             else:
-                self.statusbar.config(text='进度：')
-                self.init_image()
-            self.show_window()
-        except:
-            self.statusbar.config(text='error!!!')
-            raise
-
-    def init_listbox(self, value):
-        self.listbox.delete(0, END)
-        for item in value[0]:
-            self.listbox.insert(END, item)
-
-        if value[1]:
-            self.set_focus(value[1])
-        self.listbox.focus_set()
-
-    def set_focus(self, index):
-            self.listbox.select_set(index)
-            self.listbox.activate(index)
-
-    def event(self, event):
-        try:
-            retval = event.char
-            index = self.listbox.curselection()
-            if index:
-                index = index[0]
-                if retval == 'a':
-                    if index-1>= 0:
-                        self.listbox.select_clear(0, END)
-                        self.set_focus(index-1)
-                if retval == 's':
-                    if self.current != 'current':
-                        self.move_to(index, 'current')
-                if retval == 'w':
-                    self.is_resize = not self.is_resize
-                    self.show_window()
-                if retval == 'd':
-                    if index+1< len(self.images_dict[self.current][0]):
-                        self.listbox.select_clear(0, END)
-                        self.set_focus(index+1)
-                for idx, cl in enumerate(self.class_list):
-                    if retval == str(idx+1):
-                        if self.current != self.class_list[idx]:
-                            self.move_to(index, cl)
-                
-                self.listbox.event_generate('<<ListboxSelect>>')
-        except:
-            self.statusbar.config(text='error!!!')
-            raise
-
-    def move_to(self, idx, cl):
-        item = self.listbox.get(idx)
-        if idx+1 == len(self.images_dict[self.current][0]):
-            if idx == 0:
-                self.images_dict[self.current][1] = tuple()
-            else:
-                self.images_dict[self.current][1] = (self.images_dict[self.current][1][0]-1,)
-        self.images_dict[self.current][0].pop(idx)
-        self.listbox.delete(idx)          
-        if self.images_dict[self.current][1]:  
-            self.set_focus(self.images_dict[self.current][1][0])  
-        self.images_dict[cl][0].insert(0, item)
-        if self.images_dict[cl][1]:
-            self.images_dict[cl][1] = (self.images_dict[cl][1][0]+1,)
+                self.label_statusbar.config(text='{}'.format(self.setting.language.label_error_class_limit))
         else:
-            self.images_dict[cl][1] = (0,)
-        if self.current == 'current':
-            ori_path = os.path.join(self.input_path, item)
-        else:
-            ori_path = os.path.join(self.output_path, self.current, item)
+            self.label_statusbar.config(text='{}'.format(self.setting.language.label_error_no_output_dir))
 
-        if cl == 'current':
-            dest_path = os.path.join(self.input_path, item)
-        else:
-            dest_path = os.path.join(self.output_path, cl, item)
-        shutil.move(ori_path, dest_path)
-        
+
+    def label_set_output(self):
+        dir_path = askdirectory()
+        if dir_path:
+            if self.label_current:
+                self.label_switch_item(None)
+            self.label_class_list = []
+            self.label_class_key = [0]
+            for button in self.label_class_button:
+                button.destroy()
+            self.label_class_button = []
+
+            for i in self.label_output_treeview.get_children():
+                self.label_output_treeview.delete(i)
+            self.label_output_dir = dir_path
+            self.label_statusbar.config(text='{}:{}'.format(self.setting.language.label_info_set_output, self.label_output_dir))
+
+
+    def label_set_input(self):
+        dir_path = askdirectory()
+        if dir_path:
+            self.label_input_dir = dir_path
+            self.label_switch_item(None)
+
+
+
+    def save_setting(self):
+        geometry = self.geometry()
+        self.setting._setting.update({'geometry': geometry})
+        self.setting.save_setting()
+        self.quit()
         
 
-class Gui(Tk):
-    def __init__(self):
-        Tk.__init__(self)
-        self.title('images')
-        self.iconbitmap(resource_path('res/favicon.ico'))
-
-        menubar = Menu(self)
-        self.core = Core(self)
-        self.config(menu=menubar)
-
-        file = Menu(menubar, tearoff=False)
-        file.add_command(label='设置路径', command=self.init_from_setting)
-        file.add_command(label='载入存档', command=self.init_from_file)
-        file.add_command(label='保存档案', command=self.save)
-        menubar.add_cascade(label='文件', menu=file)
-
-        setting = Menu(menubar, tearoff=False)
-        self.var = IntVar(value=0)
-        setting.add_radiobutton(label='适应窗口', command=self.core.set_size, variable=self.var, value=0)
-        setting.add_radiobutton(label='适应图片', command=self.core.reset_size, variable=self.var, value=1)
-        menubar.add_cascade(label='设置', menu=setting)
-
-        menubar.add_command(label='帮助', command=self.help)
-
-        self.core.pack(expand=YES, fill=BOTH)
-
-        self.input_var = StringVar()
-        self.output_var = StringVar()
-        self.class_var = StringVar()
-        
-        self.dir_var = StringVar()
-        self.file_var = StringVar()
-
-    def help(self):
-         
-        msg =   '''
-                上一张 ：a
-                下一张 ：d
-                移动到输入文件夹 ：s
-                移动到输出文件夹 ：数字键
-                切换视图 ：Ctrl+数字键
-                '''
-                
-        showinfo('help', msg)
 
 
-    def init_from_file(self):
-        try:
-            file_path = askopenfilename()
-            if file_path:
-                with open(file_path,'rb') as fp:
-                    obj = pickle.load(fp)
+one = Gui()
 
-                self.input_path = obj['input_path']
-                self.output_path = obj['output_path']
-                self.classes_str = obj['classes_str']
-                self.images_dict = obj['images_dict']
-
-                self.input_var.set(self.input_path)
-                self.output_var.set(self.output_path)
-                self.class_var.set(self.classes_str)
-
-                self.class_list = self.classes_str.split()
-
-                self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
-        except:
-            self.core.statusbar.config(text='error!!!')
-            raise
-
-    def init_from_setting(self):
-        try:
-            setting = Setting(self.input_var, self.output_var, self.class_var)
-
-            if setting.state:
-                self.input_path = self.input_var.get()
-                self.output_path = self.output_var.get()
-                self.classes_str = self.class_var.get()
-
-                self.class_list = self.classes_str.split()
-
-                for item in self.class_list:
-                    os.mkdir(os.path.join(self.output_path, item))
-
-
-                self.images_dict = {item : [[], tuple()] for item in self.class_list}
-                image_names = [item for item in os.listdir(self.input_path) if is_image(item)]
-                self.images_dict.update({'current':[image_names, (0,) if image_names else tuple()]})
-
-                self.core.init(self.input_path, self.output_path, self.class_list, self.images_dict)
-        except:
-            self.core.statusbar.config(text='error!!!')
-            raise
-
-    def save(self):
-        try:
-            save = Save(self.dir_var, self.file_var)
-            if save.state:
-                obj = {
-                        'input_path':self.input_path,
-                        'output_path':self.output_path,
-                        'classes_str':self.classes_str,
-                        'images_dict':self.images_dict
-                        }
-                
-                dir_path = self.dir_var.get()
-                file_name = self.file_var.get()
-                with open(os.path.join(dir_path, file_name),'wb') as fp:
-                    pickle.dump(obj, fp)
-        except:
-            self.core.statusbar.config(text='error!!!')
-            raise
-
-if __name__ == '__main__':
-    one = Gui()
-    one.mainloop()
+one.mainloop()
