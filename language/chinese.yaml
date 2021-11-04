@@ -45,3 +45,66 @@ label_error_no_input_dir : '请先设置输入文件夹'
 
 
 
+data_label : '数据集'
+data_entry : '路径选择'
+train_ratio : '训练比例'
+valid_ratio : '验证比例'
+train_register_button : '注册'
+train_register_finish : '注册完成'
+train_reset_button : '重置'
+
+
+train_treeview_class : '类别'
+train_treeview_train : '训练集'
+train_treeview_valid : '验证集'
+
+train_hyperparameter : '超参数'
+train_augmentation : '数据增强'
+
+train_work_dir : '工作空间'
+train_network : '网络名称'
+train_loss : '损失函数'
+train_network_weights : '加载权重'
+train_epochs : '轮数'
+train_network_height : '高度'
+train_network_width : '宽度'
+train_batch_size : '批次大小'
+train_lr : '学习率'
+train_works : '线程数'
+
+
+train_start_button : '开始'
+train_stop_button : '停止'
+train_load_button : '载入'
+
+train_reset_normalization : '重置归一化'
+train_network_all : '训练所有层'
+train_transfer : '迁移训练'
+
+train_aug_list : ['缩放', 'x轴平移', 'y轴平移',  '旋转', '拉伸', '左右翻转', '上下翻转', '裁剪', '亮度', '高斯噪音', '高斯模糊', '对比度']
+train_aug_choose : '选择方法'
+train_aug_preview : '预览'
+train_aug_reset : '重置'
+train_aug_scale : '缩放'
+train_aug_translate_x : 'x轴平移'
+train_aug_translate_y : 'y轴平移'
+train_aug_rotate : '旋转'
+train_aug_shear : '拉伸'
+train_aug_flip_lr : '左右翻转'
+train_aug_flip_ud : '上下翻转'
+train_aug_crop : '裁剪'
+train_aug_multiply : '亮度'
+train_aug_gaussian_noise : '高斯噪音'
+train_aug_gaussian_blur: '高斯模糊'
+train_aug_linear_contrast : '对比度'
+
+
+train_error_check_dir : '请检查文件夹'
+train_error_repeat_add : '重复添加'
+train_error_no_data : '请设置数据集路径'
+
+
+gui_error : '程序出现错误'
+
+
+

@@ -1,3 +1,12 @@
-geometry: 1207x790+336+71
+error_log: log.txt
+geometry: 1250x819+260+82
+gui_icon: res/favicon.ico
+gui_title: DeepVision
 label_input_button_icon: ''
 language: chinese.yaml
+train_losses:
+- categorical_crossentropy
+- binary_crossentropy
+train_network_values:
+- resnet50
+- mobilenetv2
