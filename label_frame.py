@@ -34,6 +34,8 @@ class LabelFrame(ttk.Frame):
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
         self.panedwindow.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
+        self.after(50, self.load_sashpos)
+
     def make_panedwindow(self, master):
         self.panedwindow = ttk.PanedWindow(master, orient=tk.HORIZONTAL)
 
@@ -136,6 +138,9 @@ class LabelFrame(ttk.Frame):
         self.class_menu.add_command(label=self.setting[self.language]['menu_change_key'], command=self.change_key)
 
         return self.left_down
+
+    def load_sashpos(self):
+        self.panedwindow.sashpos(0, self.setting['sashpos'])
 
     def change_key(self):
         ask_key = tk.Toplevel()
@@ -350,5 +355,7 @@ class LabelFrame(ttk.Frame):
             self.input_treeview.bind('<s>', lambda event, dir_path=self.input_dir:self.move_to_dir(dir_path))
 
     def save_setting(self):
+        sashpos = self.left.winfo_width()
+        self.setting.update({'sashpos': sashpos})
         yaml.dump(self.setting, open(self.setting_path, 'w', encoding='utf8'))
         
