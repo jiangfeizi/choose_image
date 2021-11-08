@@ -8,15 +8,15 @@ def is_image(image_name):
 
 
 def redirect_out(port, host):
-    loss_sock = socket(AF_INET, SOCK_STREAM)
-    loss_sock.connect((host, port))
-    loss_sock.setblocking(False)
+    control_sock = socket(AF_INET, SOCK_STREAM)
+    control_sock.connect((host, port))
+    control_sock.setblocking(False)
 
     log_sock = socket(AF_INET, SOCK_STREAM)
     log_sock.connect((host, port))
     file = log_sock.makefile('w')
-    sys.stdout = file
-    return log_sock, loss_sock
+    #sys.stdout = file
+    return log_sock, control_sock
 
 class Config:
     def __init__(self, file):

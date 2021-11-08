@@ -1,4 +1,0 @@
-certifi==2021.5.30
-numpy==1.19.5
-Pillow==8.3.2
-wincertstore==0.2

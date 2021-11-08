@@ -22,7 +22,6 @@ class DataSequence(keras.utils.Sequence):
         batch_label = []
         for image_path, label in batch_data:
             image = cv2.imdecode(np.fromfile(image_path,np.uint8),flags=cv2.IMREAD_COLOR)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             if self.transformer:
                 image = self.transformer(image)
             image = cv2.resize(image, self.resize_size, interpolation=cv2.INTER_LINEAR)
@@ -31,9 +30,6 @@ class DataSequence(keras.utils.Sequence):
 
             batch_image.append(image)
             batch_label.append(hot_label)
-
-        batch_image = np.array(batch_image, dtype=np.float32)
-        batch_image = keras.applications.resnet50.preprocess_input(batch_image)
 
         return np.array(batch_image, np.float32), np.array(batch_label, np.float32)
 

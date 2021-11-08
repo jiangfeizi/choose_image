@@ -1,4 +1,4 @@
-from tkinter.filedialog import askdirectory, askopenfile, askopenfilename
+from tkinter.filedialog import askdirectory, askopenfilename
 from PIL import Image, ImageTk
 import numpy as np
 import os
@@ -21,13 +21,14 @@ import pickle
 import io
 from PIL import Image
 import matplotlib.pyplot as plt
+import queue
 
 
 class TrainFrame(ttk.Frame):
-    def __init__(self, master, setting, thread_queue):
+    def __init__(self, master, setting):
         ttk.Frame.__init__(self, master)
         self.setting = setting   
-        self.thread_queue = thread_queue
+        self.thread_queue = queue.Queue(maxsize=0)
 
         self.port = 50007
         self.sock = initListenerSocket(self.port)
@@ -53,6 +54,7 @@ class TrainFrame(ttk.Frame):
         self.left_right_panedwindow.pack(fill=tk.BOTH, expand=True)
 
         self.check_connect()
+        self.check_event()
 
 
     def make_left_right_panedwindow(self, master):
@@ -181,10 +183,10 @@ class TrainFrame(ttk.Frame):
         self.params_some = ttk.Frame(master)
 
         self.params_some.rowconfigure(tuple(range(10)), weight=1, minsize=42)
-        self.params_some.columnconfigure((0, 1), weight=1)
+        self.params_some.columnconfigure((1, ), weight=1)
 
         self.work_dir_var = tk.StringVar()
-        self.weights_path_var = tk.StringVar()
+        self.weights_dir_var = tk.StringVar()
         self.network_var = tk.StringVar(value=self.setting.train_network_values[0])
         self.loss_var = tk.StringVar(value=self.setting.train_losses[0])
         self.epochs_var = tk.IntVar(value=100)
@@ -202,8 +204,8 @@ class TrainFrame(ttk.Frame):
         self.loss_label = tk.Label(self.params_some, text=self.setting.language.train_loss, anchor=tk.W)
         self.loss_combobox = ttk.Combobox(self.params_some, values=self.setting.train_losses, textvariable=self.loss_var)
         self.network_weights_label = tk.Label(self.params_some, text=self.setting.language.train_network_weights, anchor=tk.W)
-        self.network_weights_entry = ttk.Entry(self.params_some, textvariable=self.weights_path_var)
-        self.network_weights_button = ttk.Button(self.params_some, image=self.file_image)
+        self.network_weights_entry = ttk.Entry(self.params_some, textvariable=self.weights_dir_var)
+        self.network_weights_button = ttk.Button(self.params_some, image=self.dir_image)
         self.network_epochs_label = tk.Label(self.params_some, text=self.setting.language.train_epochs, anchor=tk.W)
         self.network_epochs_spinbox = ttk.Spinbox(self.params_some, from_=1, to=10000, textvariable=self.epochs_var)
         self.network_height_label = tk.Label(self.params_some, text=self.setting.language.train_network_height, anchor=tk.W)
@@ -241,7 +243,7 @@ class TrainFrame(ttk.Frame):
         self.workers_spinbox.grid(row=9, column=1, sticky=tk.NSEW, pady=1)
 
         self.work_dir_button.config(command=lambda data_var=self.work_dir_var : self.set_data(data_var))
-        self.network_weights_button.config(command=lambda data_var=self.weights_path_var : self.set_weights(data_var))
+        self.network_weights_button.config(command=lambda data_var=self.weights_dir_var : self.set_data(data_var))
 
 
         return self.params_some
@@ -342,7 +344,21 @@ class TrainFrame(ttk.Frame):
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        self.scrollbar.config(command=self.treeview.yview)                    
+        self.treeview.config(yscrollcommand=self.scrollbar.set)  
+
         return self.label_info_window
+
+    def check_event(self):
+        for i in range(100):                                # pass to set speed
+            try:                                                
+                callback, args = self.thread_queue.get(block=False)  # run <= N callbacks
+            except queue.Empty:
+                break                                            # anything ready?
+            else:
+                callback(*args)                                  # run callback here
+
+        self.after(100, self.check_event)    
 
     def check_connect(self):
         try:
@@ -463,7 +479,7 @@ class TrainFrame(ttk.Frame):
         config['project_dir'] = project_dir
 
         config['network'] = self.network_var.get()
-        config['weights'] = self.weights_path_var.get()
+        config['weights'] = self.weights_dir_var.get()
         config['loss'] = self.loss_var.get()
         config['transfer'] = self.transfer_var.get()
         config['train_all'] = self.train_all_var.get()
@@ -570,11 +586,6 @@ class TrainFrame(ttk.Frame):
         dir_path = askdirectory()
         if dir_path:
             data_var.set(dir_path)
-
-    def set_weights(self, data_var):
-        file_path = askopenfilename()
-        if file_path:
-            data_var.set(file_path)
 
     def insert_text(self, msg):
         fully_scrolled_down = self.text.yview()[1] == 1.0

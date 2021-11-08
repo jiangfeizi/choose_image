@@ -1,0 +1,8 @@
+chinese:
+  notebook_eval: "\u8BC4\u4F30"
+  notebook_label: "\u6807\u6CE8"
+  notebook_train: "\u8BAD\u7EC3"
+geometry: 462x680+404+57
+icon: res/favicon.ico
+language: chinese
+title: DeepVision

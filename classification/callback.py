@@ -36,6 +36,8 @@ class IPC(keras.callbacks.Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         logs.update({'epoch':epoch+1})
+        logs['lr'] = keras.backend.get_value(self.model.optimizer.lr)
+        print(logs)
         bytes = pickle.dumps(logs)
         self.sock.send(bytes)
     

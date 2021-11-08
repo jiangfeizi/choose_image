@@ -1,6 +1,7 @@
 from tensorflow import keras
 from tensorflow.keras import backend as K
 import tensorflow as tf
+from tensorflow.keras.layers.experimental import preprocessing
 
 
 class NewOptimizer(keras.optimizers.Adam):
@@ -46,35 +47,30 @@ class NewOptimizer(keras.optimizers.Adam):
 
 
 def create_model(img_height, img_width, num_class, network, loss, lr, transfer, train_all):
+    inputs = keras.layers.Input(shape=(None, None, 3))
+
     if network == r'resnet50':
+        x = preprocessing.Resizing(img_height, img_width)(inputs)
+        x = preprocessing.Normalization(mean=[103.939, 116.779, 123.68], variance=1.0)(x)
         base_model = keras.applications.ResNet50(weights=None, include_top=False, pooling='avg')
-    elif network == r'mobilenetv2':
-        base_model = keras.applications.MobileNetV2(weights=None, include_top=False, pooling='avg')
     else:
         raise NotImplementedError('Not support the network!')
 
-    inputs = keras.layers.Input(shape=(img_height, img_width, 3))
-
     if transfer:
-        x = base_model(inputs, training=False)
+        x = base_model(x, training=False)
     else:
-        x = base_model(inputs)
+        x = base_model(x)
 
     if loss == 'binary_crossentropy':
-        fc = keras.layers.Dense(num_class, activation='sigmoid')
-        x = fc(x)
+        x = keras.layers.Dense(num_class, activation='sigmoid')(x)
         loss = keras.losses.BinaryCrossentropy()
         accuracy = keras.metrics.BinaryAccuracy()
     elif loss == 'categorical_crossentropy':
-        fc = keras.layers.Dense(num_class, activation='softmax')
-        x = fc(x)
+        x = keras.layers.Dense(num_class, activation='softmax')(x)
         loss = keras.losses.CategoricalCrossentropy()
         accuracy = keras.metrics.CategoricalAccuracy()
     model = keras.models.Model(inputs, x)
     model.summary()
-
-    model.base_model = base_model
-    model.fc = fc
 
     if train_all:
         base_model.trainable = True
@@ -88,5 +84,3 @@ def create_model(img_height, img_width, num_class, network, loss, lr, transfer, 
                     metrics=[accuracy])
 
     return model
-
-

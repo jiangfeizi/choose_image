@@ -17,8 +17,8 @@ def train(config):
 
     if config.port:
         sys.stderr = open('error.txt', 'w', encoding='utf8')
-        _, loss_sock = redirect_out(config.port, 'localhost')
-        stop = IPC(loss_sock)
+        _, control_sock = redirect_out(config.port, 'localhost')
+        stop = IPC(control_sock)
 
     transformer = Transformer(**config._config)
 
@@ -27,23 +27,24 @@ def train(config):
 
     model = create_model(config.height, config.width, data_manager.class_num, config.network, config.loss, config.lr, config.transfer, config.train_all)
 
-    try:
-        checkpoint = tf.train.Checkpoint(base_model=model.base_model, fc=model.fc)
-        if config.weights:
-            checkpoint.restore(config.weights)
-            print('restore all weights.')
-    except:
-        checkpoint = tf.train.Checkpoint(base_model=model.base_model)
-        if config.weights:
-            checkpoint.restore(config.weights)
+    if config.weights:
+        saved_model = tf.keras.models.load_model(config.weights)
+        for weight_in, weight_out in zip(model.variables[:-2], saved_model.variables[:-2]):
+            weight_in.assign(weight_out)
+        try:
+            for weight_in, weight_out in zip(model.variables[-2:], saved_model.variables[-2:]):
+                weight_in.assign(weight_out)
+        except:
             print('restore base_model weights.')
-    
+        else:
+            print('restore all weights.')
+
     checkpoint_dir = os.path.join(config.project_dir, 'checkpoint')
     if not os.path.exists(checkpoint_dir):
         os.mkdir(checkpoint_dir)
 
-    checkpoint = ModelCheckpoint(os.path.join(checkpoint_dir, config.network + '-' + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.ckpt'))
     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1)
+    checkpoint = keras.callbacks.ModelCheckpoint(os.path.join(checkpoint_dir, config.network + '-' + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.ckpt'))
     
     model.fit(
             data_manager.train_sequence(), 
