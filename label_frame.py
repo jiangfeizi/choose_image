@@ -355,7 +355,8 @@ class LabelFrame(ttk.Frame):
             self.input_treeview.bind('<s>', lambda event, dir_path=self.input_dir:self.move_to_dir(dir_path))
 
     def save_setting(self):
-        sashpos = self.left.winfo_width()
+        sashpos = self.panedwindow.sashpos(0)
+        self.panedwindow.sashpos(0)
         self.setting.update({'sashpos': sashpos})
         yaml.dump(self.setting, open(self.setting_path, 'w', encoding='utf8'))
         

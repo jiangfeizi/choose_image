@@ -1,30 +1,41 @@
-import pickle
+from logging import disable
 import tkinter as tk
 from tkinter import ttk
-from tkinter.scrolledtext import ScrolledText
-from PIL import ImageTk, Image
-from utils import is_image, resource_path, initListenerSocket
-import queue
 from tkinter.filedialog import askdirectory, askopenfilename
+from tkinter.scrolledtext import ScrolledText
+import pickle
+import yaml
+import subprocess
 import os
+import matplotlib.pyplot as plt
+import queue
 from threading import Thread
 from socket import *
+from PIL import ImageTk, Image
+import io
+import numpy as np
+
+from utils import resource_path, is_image
 
 
 class EvalFrame(ttk.Frame):
-    def __init__(self, master, setting):
+    def __init__(self, master, language):
         ttk.Frame.__init__(self, master)
-        self.setting = setting
+        self.language = language
 
-        self.setting = setting   
-        self.thread_queue = queue.Queue(maxsize=0)
-
-        self.servering_port = 50008
+        self.setting_path = resource_path('setting\eval_frame_setting.yaml')
+        self.setting = yaml.load(open(self.setting_path, encoding='utf8'))
 
         self.image = None
-
-        self.dir_image = ImageTk.PhotoImage(Image.open(resource_path('res/Folder-Open-icon_24.png')))
-        self.file_image = ImageTk.PhotoImage(Image.open(resource_path('res/File-icon.png')))
+        self.resize_image = None
+        self.eval_image = None
+        self.server_running = False
+        self.stop_eval = False
+        self.eval_running = False
+        self.thread_queue = queue.Queue(maxsize=0)
+        self.servering_port = 50008
+        self.folder_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['folder_icon'])))
+        self.file_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['file_icon'])))
 
         self.panedwindow = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
 
@@ -39,12 +50,7 @@ class EvalFrame(ttk.Frame):
         self.panedwindow.pack(fill=tk.BOTH, expand=True)
 
         self.check_event()
-
-    def insert_text(self, msg):
-        fully_scrolled_down = self.text.yview()[1] == 1.0
-        self.text.insert(tk.END, msg)
-        if fully_scrolled_down:
-            self.text.see(tk.END)
+        self.load_sashpos()
 
     def make_right_frame(self, master):
         self.right_frame = ttk.PanedWindow(master, orient=tk.VERTICAL)
@@ -82,8 +88,8 @@ class EvalFrame(ttk.Frame):
         self.notebook_1.pack(fill=tk.BOTH, expand=True)
         self.output_treeview_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.notebook.add(self.notebook_1, text='输入')
-        self.notebook.add(self.output_treeview_frame, text='结果')
+        self.notebook.add(self.notebook_1, text=self.setting[self.language]['notebook_heading'][0])
+        self.notebook.add(self.output_treeview_frame, text=self.setting[self.language]['notebook_heading'][1])
 
         return self.notebook
 
@@ -92,7 +98,6 @@ class EvalFrame(ttk.Frame):
 
         self.input_frame = self.make_input_frame(self.notebook_1)
         self.input_treeview_frame = self.make_input_treeview_frame(self.notebook_1)
-
 
         self.input_frame.pack(side=tk.TOP, fill=tk.X)
         self.input_treeview_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -128,6 +133,7 @@ class EvalFrame(ttk.Frame):
         self.output_treeview.config(yscrollcommand=self.output_scrollbar.set)  
 
         self.output_treeview.bind('<<TreeviewSelect>>', lambda event : self.select_output_item())
+        self.output_treeview.bind('<Double-Button-1>', lambda event : self.show_eval_image())
 
         return self.output_treeview_frame
 
@@ -139,15 +145,15 @@ class EvalFrame(ttk.Frame):
         self.model_var = tk.StringVar()
         self.class_var = tk.StringVar()
 
-        self.input_label = tk.Label(self.input_frame, text='输入路径')
+        self.input_label = tk.Label(self.input_frame, text=self.setting[self.language]['input_label'])
         self.input_entry = ttk.Entry(self.input_frame, textvariable=self.input_var)
-        self.input_button = ttk.Button(self.input_frame, image=self.dir_image, command=self.set_input_dir)
-        self.model_label = tk.Label(self.input_frame, text='模型路径')
+        self.input_button = ttk.Button(self.input_frame, image=self.folder_icon, command=self.set_input_dir)
+        self.model_label = tk.Label(self.input_frame, text=self.setting[self.language]['model_label'])
         self.model_entry = ttk.Entry(self.input_frame, textvariable=self.model_var)
-        self.model_button = ttk.Button(self.input_frame, image=self.dir_image, command=lambda var=self.model_var : self.set_dir(var))
-        self.class_label = tk.Label(self.input_frame, text='类别信息')
+        self.model_button = ttk.Button(self.input_frame, image=self.folder_icon, command=lambda var=self.model_var : self.set_dir(var))
+        self.class_label = tk.Label(self.input_frame, text=self.setting[self.language]['class_label'])
         self.class_entry = ttk.Entry(self.input_frame, textvariable=self.class_var)
-        self.class_button = ttk.Button(self.input_frame, image=self.file_image, command=lambda var=self.class_var : self.set_file(var))
+        self.class_button = ttk.Button(self.input_frame, image=self.file_icon, command=lambda var=self.class_var : self.set_file(var))
 
         self.model_label.grid(row=0, column=0)
         self.model_entry.grid(row=0, column=1, sticky=tk.NSEW, pady=1)
@@ -159,16 +165,15 @@ class EvalFrame(ttk.Frame):
         self.input_entry.grid(row=2, column=1, sticky=tk.NSEW, pady=1)
         self.input_button.grid(row=2, column=2)
 
-
         return self.input_frame
 
 
     def make_tool_buttons(self, master):
         self.tool_buttons = ttk.Frame(master)
 
-        self.init_button = ttk.Button(self.tool_buttons, text='开启', command=self.init_serve)
-        self.eval_button = ttk.Button(self.tool_buttons, text='评估', command=self.eval)
-        self.stop_button = ttk.Button(self.tool_buttons, text='停止')
+        self.init_button = ttk.Button(self.tool_buttons, text=self.setting[self.language]['init_button'], command=self.init_serve)
+        self.eval_button = ttk.Button(self.tool_buttons, text=self.setting[self.language]['eval_button'], command=self.eval)
+        self.stop_button = ttk.Button(self.tool_buttons, text=self.setting[self.language]['stop_button'], command=self.stop)
 
         self.init_button.pack(side=tk.LEFT)
         self.eval_button.pack(side=tk.LEFT)
@@ -176,83 +181,17 @@ class EvalFrame(ttk.Frame):
 
         return self.tool_buttons
 
-    def select_input_item(self):
-        item = self.input_treeview.focus()
-        if is_image(item):
-            self.image = Image.open(item)
-            self.resize_window()
-            result = self.predict([item])
-            self.insert_text(result[0])
+    def insert_text(self, msg):
+        fully_scrolled_down = self.text.yview()[1] == 1.0
+        self.text.insert(tk.END, msg)
+        if fully_scrolled_down:
+            self.text.see(tk.END)
 
-    def select_output_item(self):
-        item = self.output_treeview.focus()
-        if is_image(item):
-            self.image = Image.open(item)
-            self.resize_window()
-            result = self.predict([item])
-            self.insert_text(result[0])
-
-    def resize_window(self):
-        win_width = self.window.winfo_width()
-        win_height = self.window.winfo_height()
-        if self.image:
-            ratio = min(win_width/self.image.width, win_height/self.image.height)
-            image = self.image.resize((int(ratio * self.image.width), int(ratio * self.image.height)), Image.LINEAR)
-            self.image_resize = ImageTk.PhotoImage(image)
-            self.window.config(image=self.image_resize)
-        else:
-            self.window.config(image='')
-
-    def predict(self, batch_image):
-        bytes = pickle.dumps(batch_image)
-        self.sock.send(bytes)
-        bytes = self.sock.recv(4096)
-        obj = pickle.loads(bytes)
-        return obj
-
-
-    def init_serve(self):
-        def call_serve(model_path, class_info, port):
-            os.system('start D:/Program/Anaconda3/envs/tf2/python.exe classification/evaluation.py --model_path {} --class_info {} --port {}'.format(model_path, class_info, port))
-            
-            self.sock = socket(AF_INET, SOCK_STREAM)
-            while True:
-                try:
-                    self.sock.connect(('localhost', self.servering_port))
-                    self.thread_queue.put((self.insert_text, ('server is running.\n', )))
-                except Exception as e:
-                    print(e)
-                else:
-                    break
-
-        self.insert_text('please wait.\n')
-        model_path = self.model_var.get()
-        class_info = self.class_var.get()
-
-        thread = Thread(target=call_serve, args=(model_path, class_info, self.servering_port))
-        thread.start()
-
-    def eval(self):
-        dir_path = self.input_var.get()
-        for dir_item in os.listdir(dir_path):
-            id_dir = os.path.join(dir_path, dir_item)
-            self.output_treeview.insert('', tk.END, id_dir, text=dir_item)
-            image_names = [item for item in os.listdir(id_dir) if is_image(item)]
-            images = [os.path.join(id_dir, item) for item in image_names]
-            tmp_images = images[:]
-            result = []
-            while tmp_images:       
-                batch_image, tmp_images = tmp_images[:8], tmp_images[8:]   
-                batch_result = self.predict(batch_image)
-                result.extend(batch_result)
-            out_dir = sorted(set(result))
-            for i in out_dir:
-                self.output_treeview.insert(id_dir, tk.END, id_dir+'##'+i, text=i)
-            for index, i in enumerate(result):
-                self.output_treeview.insert(id_dir+'##'+i, tk.END, images[index], text=image_names[index])
-
-
-
+    def load_sashpos(self):
+        if self.setting['lr_sashpos'] != self.panedwindow.sashpos(0) or self.setting['tb_sashpos'] != self.right_frame.sashpos(0):
+            self.panedwindow.sashpos(0, self.setting['lr_sashpos'])
+            self.right_frame.sashpos(0, self.setting['tb_sashpos'])
+            self.after(100, self.load_sashpos)
 
     def check_event(self):
         for i in range(100):                                # pass to set speed
@@ -265,6 +204,158 @@ class EvalFrame(ttk.Frame):
 
         self.after(100, self.check_event)  
 
+    def select_item(self, image_path):
+        if os.path.isfile(image_path):
+            self.image = Image.open(image_path)
+            self.resize_window()
+            if self.server_running:
+                result = self.predict([image_path])
+                self.insert_text('{}:{:.3f}\n'.format(result[0][0], result[0][1]))
+
+    def select_input_item(self):
+        image_path = self.input_treeview.focus()
+        self.select_item(image_path)
+
+    def select_output_item(self):
+        image_path = self.output_treeview.focus()
+        self.select_item(image_path)
+
+    def resize_window(self):
+        win_width = self.window.winfo_width()
+        win_height = self.window.winfo_height()
+        if self.image:
+            ratio = min(win_width/self.image.width, win_height/self.image.height)
+            image = self.image.resize((int(ratio * self.image.width), int(ratio * self.image.height)), Image.LINEAR)
+            self.resize_image = ImageTk.PhotoImage(image)
+            self.window.config(image=self.resize_image)
+        else:
+            self.window.config(image='')
+
+    def predict(self, batch_image):
+        bytes = pickle.dumps(batch_image)
+        self.sock.send(bytes)
+        bytes = self.sock.recv(4096)
+        obj = pickle.loads(bytes)
+        return obj
+
+    def init_serve(self):
+        def call_serve(model_path, class_info, port):
+            subprocess.Popen('D:/Program/Anaconda3/envs/tf2/python.exe classification/evaluation.py --model_path {} --class_info {} --port {}'.format(model_path, class_info, port))
+            
+            self.sock = socket(AF_INET, SOCK_STREAM)
+            while True:
+                try:
+                    self.sock.connect(('localhost', self.servering_port))
+                    self.thread_queue.put((self.insert_text, (self.setting[self.language]['info_server_running']+'\n', )))
+                    self.server_running = True
+                except Exception as e:
+                    print(e)
+                else:
+                    break
+
+        model_path = self.model_var.get()
+        class_info = self.class_var.get()
+        if model_path and class_info:
+            self.init_button.config(state=tk.DISABLED)
+            self.insert_text(self.setting[self.language]['info_wait_server']+'\n')
+
+            thread = Thread(target=call_serve, args=(model_path, class_info, self.servering_port))
+            thread.start()
+        else:
+            self.insert_text(self.setting[self.language]['info_no_model']+'\n')
+
+    def output_treeview_insert(self, parent, index, iid, text):
+        self.output_treeview.insert(parent, index, iid, text=text)
+
+
+    def stop(self):
+        if self.eval_running:
+            self.stop_eval = True
+        else:
+            self.insert_text(self.setting[self.language]['info_no_eval']+'\n')
+
+    def load_class_list(self, class_info):
+        lines = open(class_info, encoding='utf8').readlines()
+        return [line.strip() for line in lines]
+
+    def show_eval_image(self):
+        self.image = self.eval_image
+        self.resize_window()
+
+    def eval(self):
+        def plot_table(total_dir, class_list, array):
+            img_buf = io.BytesIO()
+            plt.figure(figsize=(20,8))
+            tab = plt.table(cellText=array, 
+                        colLabels=class_list, 
+                        rowLabels=total_dir,
+                        loc='center', 
+                        cellLoc='center',
+                        rowLoc='center')
+            tab.scale(1,2) 
+            plt.axis('off')
+            plt.savefig(img_buf, format='png')
+            self.eval_image = Image.open(img_buf).copy()
+            
+            self.image = self.eval_image
+            img_buf.close()
+            self.resize_window()
+
+        def thread_eval(input_dir, class_info):
+            self.eval_running = True
+            total_num = len(os.listdir(input_dir))
+            total_dir = os.listdir(input_dir)
+            class_list = self.load_class_list(class_info)
+            result_array = np.zeros((len(total_dir), len(class_list)), dtype=np.int32)
+
+            for progress_index, dir_item in enumerate(total_dir):
+                dir_path = os.path.join(input_dir, dir_item)
+                self.thread_queue.put((self.output_treeview_insert, ('', tk.END, dir_path, dir_item)))
+                image_names = [item for item in os.listdir(dir_path) if is_image(item)]
+                image_paths = [os.path.join(dir_path, item) for item in image_names]
+
+                result = []
+                tmp_image_paths = image_paths[:]
+                while tmp_image_paths:       
+                    if self.stop_eval:
+                        self.eval_running = False
+                        self.stop_eval = False
+                        return
+                    batch_image_paths, tmp_image_paths = tmp_image_paths[:8], tmp_image_paths[8:]   
+                    batch_result = self.predict(batch_image_paths)
+                    result.extend(batch_result)
+
+                    for item in batch_result:
+                        result_array[progress_index][class_list.index(item[0])] += 1
+
+                out_dir = sorted(set([item[0] for item in result]))
+                for item in out_dir:
+                    self.thread_queue.put((self.output_treeview_insert, (dir_path, tk.END, dir_path+'##'+item, item)))
+                for index, item in enumerate(result):
+                    self.thread_queue.put((self.output_treeview_insert, (dir_path+'##'+item[0], tk.END, image_paths[index], image_names[index])))
+
+                self.thread_queue.put((self.insert_text, ('{}:{}/{}\n'.format(self.setting[self.language]['info_progress'], progress_index+1, total_num), )))
+            self.thread_queue.put((self.insert_text, (self.setting[self.language]['info_eval_finish']+'\n', )))
+
+            plot_table(total_dir, class_list, result_array)
+
+        if self.server_running:
+            self.eval_image = None
+            input_dir = self.input_var.get()
+            class_info = self.class_var.get()
+            if input_dir:
+                for i in self.output_treeview.get_children():
+                    self.output_treeview.delete(i)
+
+                thread = Thread(target=thread_eval, args=(input_dir, class_info))
+                thread.start()
+            else:
+                self.insert_text(self.setting[self.language]['info_no_input']+'\n')
+        else:
+            self.insert_text(self.setting[self.language]['info_no_server']+'\n')
+
+        
+
     def set_dir(self, var):
         dir_path = askdirectory()
         if dir_path:
@@ -276,16 +367,25 @@ class EvalFrame(ttk.Frame):
             var.set(file_path)
 
     def set_input_dir(self):
-        dir_path = askdirectory()
-        if dir_path:
-            self.input_var.set(dir_path)
-            for dir_item in os.listdir(dir_path):
-                id_dir = os.path.join(dir_path, dir_item)
-                self.input_treeview.insert('', tk.END, id_dir, text=dir_item)
-                for image_item in os.listdir(id_dir):
+        input_dir = askdirectory()
+        if input_dir:
+            for i in self.input_treeview.get_children():
+                self.input_treeview.delete(i)
+            self.input_var.set(input_dir)
+            for dir_item in os.listdir(input_dir):
+                dir_path = os.path.join(input_dir, dir_item)
+                self.input_treeview.insert('', tk.END, dir_path, text=dir_item)
+                for image_item in os.listdir(dir_path):
                     if is_image(image_item):
-                        id_image = os.path.join(id_dir, image_item)
-                        self.input_treeview.insert(id_dir, tk.END, id_image, text=image_item)
+                        image_path = os.path.join(dir_path, image_item)
+                        self.input_treeview.insert(dir_path, tk.END, image_path, text=image_item)
+
+    def save_setting(self):
+        lr_sashpos = self.panedwindow.sashpos(0)
+        tb_sashpos = self.right_frame.sashpos(0)
+        self.setting.update({'lr_sashpos': lr_sashpos})
+        self.setting.update({'tb_sashpos': tb_sashpos})
+        yaml.dump(self.setting, open(self.setting_path, 'w', encoding='utf8'))
 
 
 if __name__=='__main__':

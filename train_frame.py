@@ -25,9 +25,13 @@ import queue
 
 
 class TrainFrame(ttk.Frame):
-    def __init__(self, master, setting):
+    def __init__(self, master, language):
         ttk.Frame.__init__(self, master)
-        self.setting = setting   
+        self.language = language
+
+        self.setting_path = resource_path('setting\train_frame_setting.yaml')
+        self.setting = yaml.load(open(self.setting_path, encoding='utf8'))
+
         self.thread_queue = queue.Queue(maxsize=0)
 
         self.port = 50007

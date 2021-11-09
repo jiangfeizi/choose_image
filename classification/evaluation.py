@@ -1,11 +1,7 @@
 import pickle
 import tensorflow as tf
 import argparse
-from model import create_model
-from utils import redirect_out, Config
 import sys
-import time
-import os
 import cv2
 import numpy as np
 from socket import *
@@ -36,9 +32,11 @@ def evaluation(args):
             images.append(image)
         images = np.array(images, np.float32)
         result = saved_model(images).numpy()
-        result = np.argmax(result, axis=-1).tolist()
-        result = [class_list[i] for i in result]
-        conn.send(pickle.dumps(result))
+        indexes = np.argmax(result, axis=-1).tolist()
+        scores = np.max(result, axis=-1).tolist()
+        classes = [class_list[i] for i in indexes]
+        obj = list(zip(classes, scores))
+        conn.send(pickle.dumps(obj))
 
 
 

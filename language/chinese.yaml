@@ -1,50 +1,6 @@
 
 
 
-
-notebook_label : '标注'
-notebook_train : '训练'
-notebook_eval : '评估'
-
-
-label_input_button : '输入路径'
-label_ret_button : '返回'
-
-label_filename : '文件名'
-
-label_menu_delete : '删除'
-label_menu_change_key : '设置快捷键'
-label_progress : '进度'
-
-
-label_output_button : '输出路径'
-label_add_button : '添加'
-
-
-
-label_table_class : '类　别'
-label_table_num : '数　量'
-label_table_key : '快捷键'
-
-
-
-train_input : ''
-
-label_info_set_output : '设置输出文件夹'
-label_info_output_tip : '添加类别'
-
-
-
-
-label_error_open_image : '这张图片不能打开'
-label_error_multi_create : '重复创建'
-label_error_no_output_dir : '请先设置输出文件夹'
-label_error_exist_dir : '输出文件夹中存在该'
-label_error_class_limit : '类别数量最多为9'
-label_error_no_input_dir : '请先设置输入文件夹'
-
-
-
 data_label : '数据集'
 data_entry : '路径选择'
 train_ratio : '训练比例'
