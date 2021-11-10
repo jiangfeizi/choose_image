@@ -22,13 +22,14 @@ class ModelCheckpoint(keras.callbacks.Callback):
         self.checkpoint.save(self.file_path.format(**logs))
 
 class IPC(keras.callbacks.Callback):
-    def __init__(self, sock):
+    def __init__(self, input_conn, output_conn):
         super(IPC, self).__init__()
-        self.sock = sock
+        self.input_conn = input_conn
+        self.output_conn = output_conn
 
     def on_train_batch_end(self, batch, logs=None):
         try:
-            data = self.sock.recv(1024)
+            data = self.input_conn.recv(1024)
             if data == b'stop':
                 self.model.stop_training = True
         except:
@@ -37,9 +38,8 @@ class IPC(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         logs.update({'epoch':epoch+1})
         logs['lr'] = keras.backend.get_value(self.model.optimizer.lr)
-        print(logs)
         bytes = pickle.dumps(logs)
-        self.sock.send(bytes)
+        self.output_conn.send(bytes)
     
 # class LossHistory(keras.callbacks.Callback):
 #     def __init__(self, log_dir):

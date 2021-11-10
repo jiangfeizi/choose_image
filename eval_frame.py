@@ -23,7 +23,7 @@ class EvalFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.language = language
 
-        self.setting_path = resource_path('setting\eval_frame_setting.yaml')
+        self.setting_path = resource_path('setting/eval_frame_setting.yaml')
         self.setting = yaml.load(open(self.setting_path, encoding='utf8'))
 
         self.image = None

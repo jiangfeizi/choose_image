@@ -44,15 +44,15 @@ class Gui(tk.Tk):
         self.notebook = ttk.Notebook(master)
         
         self.label_frame = LabelFrame(self.notebook, self.setting['language'])
-        #self.train_frame = TrainFrame(self.notebook, self.setting['language'])
+        self.train_frame = TrainFrame(self.notebook, self.setting['language'])
         self.eval_frame = EvalFrame(self.notebook, self.setting['language'])
 
         self.label_frame.pack(fill=tk.BOTH, expand=True)
-        #self.train_frame.pack(fill=tk.BOTH, expand=True)
+        self.train_frame.pack(fill=tk.BOTH, expand=True)
         self.eval_frame.pack(fill=tk.BOTH, expand=True)
 
         self.notebook.add(self.label_frame, text=self.setting[self.setting['language']]['notebook_label'])
-        #self.notebook.add(self.train_frame, text=self.setting[self.setting['language']]['notebook_train'])
+        self.notebook.add(self.train_frame, text=self.setting[self.setting['language']]['notebook_train'])
         self.notebook.add(self.eval_frame, text=self.setting[self.setting['language']]['notebook_eval'])
 
         return self.notebook       
@@ -65,6 +65,7 @@ class Gui(tk.Tk):
     def exit(self):
         self.save_setting()
         self.label_frame.save_setting()
+        self.train_frame.save_setting()
         self.eval_frame.save_setting()
 
         self.quit()

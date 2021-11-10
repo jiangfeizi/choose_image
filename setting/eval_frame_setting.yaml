@@ -18,5 +18,5 @@ chinese:
   stop_button: "\u505C\u6B62"
 file_icon: res/File-icon.png
 folder_icon: res/Folder-Open-icon_24.png
-lr_sashpos: 281
-tb_sashpos: 455
+lr_sashpos: 0
+tb_sashpos: 0

@@ -1,0 +1,74 @@
+add_icon: res/add-icon.png
+chinese:
+  aug_choose: "\u9009\u62E9\u65B9\u6CD5"
+  aug_crop: "\u88C1\u526A"
+  aug_flip_lr: "\u5DE6\u53F3\u7FFB\u8F6C"
+  aug_flip_ud: "\u4E0A\u4E0B\u7FFB\u8F6C"
+  aug_gaussian_blur: "\u9AD8\u65AF\u6A21\u7CCA"
+  aug_gaussian_noise: "\u9AD8\u65AF\u566A\u97F3"
+  aug_linear_contrast: "\u5BF9\u6BD4\u5EA6"
+  aug_list:
+  - "\u7F29\u653E"
+  - "x\u8F74\u5E73\u79FB"
+  - "y\u8F74\u5E73\u79FB"
+  - "\u65CB\u8F6C"
+  - "\u62C9\u4F38"
+  - "\u5DE6\u53F3\u7FFB\u8F6C"
+  - "\u4E0A\u4E0B\u7FFB\u8F6C"
+  - "\u88C1\u526A"
+  - "\u4EAE\u5EA6"
+  - "\u9AD8\u65AF\u566A\u97F3"
+  - "\u9AD8\u65AF\u6A21\u7CCA"
+  - "\u5BF9\u6BD4\u5EA6"
+  aug_multiply: "\u4EAE\u5EA6"
+  aug_preview: "\u9884\u89C8"
+  aug_reset: "\u91CD\u7F6E"
+  aug_rotate: "\u65CB\u8F6C"
+  aug_scale: "\u7F29\u653E"
+  aug_shear: "\u62C9\u4F38"
+  aug_translate_x: "x\u8F74\u5E73\u79FB"
+  aug_translate_y: "y\u8F74\u5E73\u79FB"
+  augmentation: "\u6570\u636E\u589E\u5F3A"
+  batch_size: "\u6279\u6B21\u5927\u5C0F"
+  continue_button: "\u8F7D\u5165"
+  dataset_button: "\u8DEF\u5F84\u9009\u62E9"
+  dataset_label: "\u6570\u636E\u96C6"
+  epochs: "\u8F6E\u6570"
+  hyperparameter: "\u8D85\u53C2\u6570"
+  info_invalid_input: "\u8F93\u5165\u4E0D\u5408\u6CD5"
+  info_invalid_ratio: "\u6BD4\u7387\u4E0D\u5408\u6CD5"
+  info_invalid_workspace: "\u5DE5\u4F5C\u7A7A\u95F4\u4E0D\u5408\u6CD5"
+  info_repeat_add: "\u91CD\u590D\u6DFB\u52A0"
+  info_start_training: "\u5F00\u59CB\u8BAD\u7EC3"
+  loss: "\u635F\u5931\u51FD\u6570"
+  lr: "\u5B66\u4E60\u7387"
+  network: "\u7F51\u7EDC\u540D\u79F0"
+  network_height: "\u9AD8\u5EA6"
+  network_weights: "\u52A0\u8F7D\u6743\u91CD"
+  network_width: "\u5BBD\u5EA6"
+  register_button: "\u6CE8\u518C"
+  register_finish: "\u6CE8\u518C\u5B8C\u6210"
+  start_button: "\u5F00\u59CB"
+  stop_button: "\u505C\u6B62"
+  train_all: "\u8BAD\u7EC3\u6240\u6709\u5C42"
+  train_ratio: "\u8BAD\u7EC3\u6BD4\u4F8B"
+  transfer: "\u8FC1\u79FB\u8BAD\u7EC3"
+  treeview_heading:
+  - "\u7C7B\u522B"
+  - "\u8BAD\u7EC3\u96C6"
+  - "\u9A8C\u8BC1\u96C6"
+  valid_ratio: "\u9A8C\u8BC1\u6BD4\u4F8B"
+  work_dir: "\u5DE5\u4F5C\u7A7A\u95F4"
+  workers: "\u7EBF\u7A0B\u6570"
+continue_icon: res/Folder-Open-icon.png
+delete_icon: res/Remove-icon.png
+dir_icon: res/Folder-Open-icon_24.png
+loss_values:
+- categorical_crossentropy
+- binary_crossentropy
+lr_sashpos: 328
+network_values:
+- resnet50
+start_icon: res/Start-2-icon.png
+stop_icon: res/End-icon.png
+tb_sashpos: 479

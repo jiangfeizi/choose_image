@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "classification/evaluation.py", line 50, in <module>
-    evaluation(args)
-  File "classification/evaluation.py", line 26, in evaluation
-    bytes = conn.recv(4096)
-ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。

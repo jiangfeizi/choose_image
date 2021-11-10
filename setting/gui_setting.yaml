@@ -2,7 +2,7 @@ chinese:
   notebook_eval: "\u8BC4\u4F30"
   notebook_label: "\u6807\u6CE8"
   notebook_train: "\u8BAD\u7EC3"
-geometry: 921x719+520+134
+geometry: 1157x783+420+24
 icon: res/favicon.ico
 language: chinese
 title: DeepVision

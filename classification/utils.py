@@ -15,7 +15,7 @@ def redirect_out(port, host):
     log_sock = socket(AF_INET, SOCK_STREAM)
     log_sock.connect((host, port))
     file = log_sock.makefile('w')
-    #sys.stdout = file
+    sys.stdout = file
     return log_sock, control_sock
 
 class Config:

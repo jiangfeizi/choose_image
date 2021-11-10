@@ -1,12 +1,9 @@
 import pickle
 import tensorflow as tf
 import argparse
-import sys
 import cv2
 import numpy as np
 from socket import *
-import sys
-sys.stderr = open('error.txt', 'w')
 
 def load_class_list(class_info):
     lines = open(class_info, encoding='utf8').readlines()
@@ -20,7 +17,7 @@ def evaluation(args):
     sock = socket(AF_INET, SOCK_STREAM)
     sock.bind(('', args.port))
     sock.listen(5)
-    conn, addr = sock.accept()
+    conn, addr = sock.accept() 
     
     while True:
         bytes = conn.recv(4096)

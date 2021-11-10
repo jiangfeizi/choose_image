@@ -15,7 +15,7 @@ class LabelFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.language = language
 
-        self.setting_path = resource_path('setting\label_frame_setting.yaml')
+        self.setting_path = resource_path('setting/label_frame_setting.yaml')
         self.setting = yaml.load(open(self.setting_path, encoding='utf8'))
         
         # 内置参数

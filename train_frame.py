@@ -1,27 +1,29 @@
-from tkinter.filedialog import askdirectory, askopenfilename
-from PIL import Image, ImageTk
-import numpy as np
-import os
-import shutil
 from tkinter.messagebox import *
-import pickle
-from tkinter.scrolledtext import ScrolledText
-from utils import is_image, resource_path
-
 import tkinter as tk
 import tkinter.ttk as ttk
+from tkinter.scrolledtext import ScrolledText
+import pickle
+import subprocess
 import random
 from threading import Thread
 from classification.transformer import Transformer
 import cv2
-import socket
-from utils import initListenerSocket
 import yaml
 import pickle
 import io
 from PIL import Image
 import matplotlib.pyplot as plt
 import queue
+from socket import *
+import time
+import os
+import shutil
+import numpy as np
+from tkinter.filedialog import askdirectory
+from PIL import Image, ImageTk
+
+
+from utils import is_image, resource_path
 
 
 class TrainFrame(ttk.Frame):
@@ -29,27 +31,28 @@ class TrainFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.language = language
 
-        self.setting_path = resource_path('setting\train_frame_setting.yaml')
+        self.setting_path = resource_path('setting/train_frame_setting.yaml')
         self.setting = yaml.load(open(self.setting_path, encoding='utf8'))
 
         self.thread_queue = queue.Queue(maxsize=0)
 
-        self.port = 50007
-        self.sock = initListenerSocket(self.port)
-        self.loss_conn = None
-        self.log_conn = None
-        self.train_log = None
-
+        self.servering_port = 50009
+        self.log = None
         self.losses = []
         self.val_loss = []
+        self.is_training = False
+        self.image = None
+        self.resize_image = None
+        self.input_sock = None
+        self.output_sock = None
+        self.log_sock = None
 
-        self.augmentation_add_image = ImageTk.PhotoImage(Image.open(resource_path('res/add-icon.png')))
-        self.augmentation_delete_image = ImageTk.PhotoImage(Image.open(resource_path('res/Remove-icon.png')))
-        self.dir_image = ImageTk.PhotoImage(Image.open(resource_path('res/Folder-Open-icon_24.png')))
-        self.file_image = ImageTk.PhotoImage(Image.open(resource_path('res/File-icon.png')))
-        self.start_image = ImageTk.PhotoImage(Image.open(resource_path('res/Start-2-icon.png')))
-        self.stop_image = ImageTk.PhotoImage(Image.open(resource_path('res/End-icon.png')))
-        self.load_image = ImageTk.PhotoImage(Image.open(resource_path('res/Folder-Open-icon.png')))
+        self.add_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['add_icon'])))
+        self.delete_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['delete_icon'])))
+        self.dir_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['dir_icon'])))
+        self.start_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['start_icon'])))
+        self.stop_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['stop_icon'])))
+        self.continue_icon = ImageTk.PhotoImage(Image.open(resource_path(self.setting['continue_icon'])))
 
         self.augmentation_list = []
         self.augmentation_items = []
@@ -57,9 +60,8 @@ class TrainFrame(ttk.Frame):
         self.left_right_panedwindow = self.make_left_right_panedwindow(self)
         self.left_right_panedwindow.pack(fill=tk.BOTH, expand=True)
 
-        self.check_connect()
+        self.load_sashpos()
         self.check_event()
-
 
     def make_left_right_panedwindow(self, master):
         self.left_right_panedwindow = ttk.PanedWindow(master, orient=tk.HORIZONTAL)
@@ -67,8 +69,8 @@ class TrainFrame(ttk.Frame):
         self.left_frame = self.make_left_frame(self.left_right_panedwindow)
         self.right_frame = self.make_right_frame(self.left_right_panedwindow)
         
-        self.left_frame.pack(side=tk.LEFT, fill=tk.Y)
-        self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        self.left_frame.pack(fill=tk.BOTH, expand=True)
+        self.right_frame.pack(fill=tk.BOTH, expand=True)
 
         self.left_right_panedwindow.add(self.left_frame)
         self.left_right_panedwindow.add(self.right_frame)
@@ -101,10 +103,10 @@ class TrainFrame(ttk.Frame):
     def make_main_window(self, master):
         self.main_window = ttk.Panedwindow(master)
 
-        self.window = tk.Label(self.main_window, height=30)
+        self.window = tk.Label(self.main_window)
         self.text = ScrolledText(self.main_window)
-        self.window_image = None
-        self.window_image_resize = None
+        self.image = None
+        self.resize_image = None
 
         self.window.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self.text.pack(side=tk.BOTTOM, fill=tk.X)
@@ -123,8 +125,9 @@ class TrainFrame(ttk.Frame):
 
         self.hyperparameter_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self.augmentation_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        self.notebook.add(self.hyperparameter, text=self.setting.language.train_hyperparameter)
-        self.notebook.add(self.augmentation, text=self.setting.language.train_augmentation)
+        
+        self.notebook.add(self.hyperparameter, text=self.setting[self.language]['hyperparameter'])
+        self.notebook.add(self.augmentation, text=self.setting[self.language]['augmentation'])
 
         return self.notebook
 
@@ -139,18 +142,15 @@ class TrainFrame(ttk.Frame):
 
         return self.augmentation
 
-
-
     def make_augmentation_choose_frame(self, master):
         self.augmentation_choose_frame = ttk.Frame(master)
         self.augmentation_choose_frame.columnconfigure(1, weight=1)
         
-
         self.augmentation_combobox_var = tk.StringVar()
 
-        self.augmentation_choose_label = tk.Label(self.augmentation_choose_frame, anchor=tk.W, text=self.setting.language.train_aug_choose)
-        self.augmentation_combobox = ttk.Combobox(self.augmentation_choose_frame, values=self.setting.language.train_aug_list, textvariable=self.augmentation_combobox_var)
-        self.augmentation_add_button = ttk.Button(self.augmentation_choose_frame, image=self.augmentation_add_image, command=self.add_augmentation_item)
+        self.augmentation_choose_label = tk.Label(self.augmentation_choose_frame, anchor=tk.W, text=self.setting[self.language]['aug_choose'])
+        self.augmentation_combobox = ttk.Combobox(self.augmentation_choose_frame, values=self.setting[self.language]['aug_list'], textvariable=self.augmentation_combobox_var)
+        self.augmentation_add_button = ttk.Button(self.augmentation_choose_frame, image=self.add_icon, command=self.add_augmentation_item)
 
         self.augmentation_choose_label.grid(row=20, column=0, sticky=tk.NSEW, ipadx=5)
         self.augmentation_combobox.grid(row=20, column=1, sticky=tk.NSEW)
@@ -161,8 +161,8 @@ class TrainFrame(ttk.Frame):
     def make_augmentation_buttons(self, master):
         self.augmentation_buttons = ttk.Frame(master)
 
-        self.augmentation_preview_button = ttk.Button(self.augmentation_buttons, text=self.setting.language.train_aug_preview)
-        self.augmentation_reset_button = ttk.Button(self.augmentation_buttons, text=self.setting.language.train_aug_reset)
+        self.augmentation_preview_button = ttk.Button(self.augmentation_buttons, text=self.setting[self.language]['aug_preview'])
+        self.augmentation_reset_button = ttk.Button(self.augmentation_buttons, text=self.setting[self.language]['aug_reset'])
 
         self.augmentation_preview_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.augmentation_reset_button.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -191,8 +191,8 @@ class TrainFrame(ttk.Frame):
 
         self.work_dir_var = tk.StringVar()
         self.weights_dir_var = tk.StringVar()
-        self.network_var = tk.StringVar(value=self.setting.train_network_values[0])
-        self.loss_var = tk.StringVar(value=self.setting.train_losses[0])
+        self.network_var = tk.StringVar(value=self.setting['network_values'][0])
+        self.loss_var = tk.StringVar(value=self.setting['loss_values'][0])
         self.epochs_var = tk.IntVar(value=100)
         self.height_var = tk.IntVar(value=224)
         self.width_var = tk.IntVar(value=224)
@@ -200,27 +200,27 @@ class TrainFrame(ttk.Frame):
         self.lr_var = tk.DoubleVar(value=0.0001)
         self.workers_var = tk.IntVar(value=2)
 
-        self.work_dir_label = tk.Label(self.params_some, text=self.setting.language.train_work_dir, anchor=tk.W)
+        self.work_dir_label = tk.Label(self.params_some, text=self.setting[self.language]['work_dir'], anchor=tk.W)
         self.work_dir_entry = ttk.Entry(self.params_some, textvariable=self.work_dir_var)
-        self.work_dir_button = ttk.Button(self.params_some, image=self.dir_image)
-        self.network_label = tk.Label(self.params_some, text=self.setting.language.train_network, anchor=tk.W)
-        self.network_combobox = ttk.Combobox(self.params_some, values=self.setting.train_network_values, textvariable=self.network_var)
-        self.loss_label = tk.Label(self.params_some, text=self.setting.language.train_loss, anchor=tk.W)
-        self.loss_combobox = ttk.Combobox(self.params_some, values=self.setting.train_losses, textvariable=self.loss_var)
-        self.network_weights_label = tk.Label(self.params_some, text=self.setting.language.train_network_weights, anchor=tk.W)
+        self.work_dir_button = ttk.Button(self.params_some, image=self.dir_icon)
+        self.network_label = tk.Label(self.params_some, text=self.setting[self.language]['network'], anchor=tk.W)
+        self.network_combobox = ttk.Combobox(self.params_some, values=self.setting['network_values'], textvariable=self.network_var)
+        self.loss_label = tk.Label(self.params_some, text=self.setting[self.language]['loss'], anchor=tk.W)
+        self.loss_combobox = ttk.Combobox(self.params_some, values=self.setting['loss_values'], textvariable=self.loss_var)
+        self.network_weights_label = tk.Label(self.params_some, text=self.setting[self.language]['network_weights'], anchor=tk.W)
         self.network_weights_entry = ttk.Entry(self.params_some, textvariable=self.weights_dir_var)
-        self.network_weights_button = ttk.Button(self.params_some, image=self.dir_image)
-        self.network_epochs_label = tk.Label(self.params_some, text=self.setting.language.train_epochs, anchor=tk.W)
+        self.network_weights_button = ttk.Button(self.params_some, image=self.dir_icon)
+        self.network_epochs_label = tk.Label(self.params_some, text=self.setting[self.language]['epochs'], anchor=tk.W)
         self.network_epochs_spinbox = ttk.Spinbox(self.params_some, from_=1, to=10000, textvariable=self.epochs_var)
-        self.network_height_label = tk.Label(self.params_some, text=self.setting.language.train_network_height, anchor=tk.W)
+        self.network_height_label = tk.Label(self.params_some, text=self.setting[self.language]['network_height'], anchor=tk.W)
         self.network_height_spinbox = ttk.Spinbox(self.params_some, from_=32, to=1024, increment=32, textvariable=self.height_var)
-        self.network_width_label = tk.Label(self.params_some, text=self.setting.language.train_network_width, anchor=tk.W)
+        self.network_width_label = tk.Label(self.params_some, text=self.setting[self.language]['network_width'], anchor=tk.W)
         self.network_width_spinbox = ttk.Spinbox(self.params_some, from_=32, to=1024, increment=32, textvariable=self.width_var)
-        self.network_batchsize_label = tk.Label(self.params_some, text=self.setting.language.train_batch_size, anchor=tk.W)
+        self.network_batchsize_label = tk.Label(self.params_some, text=self.setting[self.language]['batch_size'], anchor=tk.W)
         self.network_batchsize_spinbox = ttk.Spinbox(self.params_some, from_=1, to=256, textvariable=self.batchsize_var)
-        self.network_lr_label = tk.Label(self.params_some, text=self.setting.language.train_lr, anchor=tk.W)
+        self.network_lr_label = tk.Label(self.params_some, text=self.setting[self.language]['lr'], anchor=tk.W)
         self.network_lr_spinbox = ttk.Spinbox(self.params_some, from_=0, to=0.1, increment=0.000001, format='%.6f', textvariable=self.lr_var)
-        self.workers_label = tk.Label(self.params_some, text=self.setting.language.train_works, anchor=tk.W)
+        self.workers_label = tk.Label(self.params_some, text=self.setting[self.language]['workers'], anchor=tk.W)
         self.workers_spinbox = ttk.Spinbox(self.params_some, from_=0, to=8, textvariable=self.workers_var)
 
         self.work_dir_label.grid(row=0, column=0, sticky=tk.NSEW, ipadx=5)
@@ -249,7 +249,6 @@ class TrainFrame(ttk.Frame):
         self.work_dir_button.config(command=lambda data_var=self.work_dir_var : self.set_data(data_var))
         self.network_weights_button.config(command=lambda data_var=self.weights_dir_var : self.set_data(data_var))
 
-
         return self.params_some
 
 
@@ -259,25 +258,24 @@ class TrainFrame(ttk.Frame):
         self.transfer_var = tk.IntVar(value=0)
         self.train_all_var = tk.IntVar(value=1)
 
-        self.transfer = ttk.Checkbutton(self.params_checkbuttons, variable=self.transfer_var, text=self.setting.language.train_transfer)
-        self.train_all = ttk.Checkbutton(self.params_checkbuttons, variable=self.train_all_var, text=self.setting.language.train_network_all)
+        self.transfer = ttk.Checkbutton(self.params_checkbuttons, variable=self.transfer_var, text=self.setting[self.language]['transfer'])
+        self.train_all = ttk.Checkbutton(self.params_checkbuttons, variable=self.train_all_var, text=self.setting[self.language]['train_all'])
 
-        self.transfer.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.train_all.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.transfer.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        self.train_all.pack(side=tk.LEFT, fill=tk.Y, expand=True)
 
         return self.params_checkbuttons
 
     def make_buttons(self, master):
         self.buttons = ttk.Frame(master)
 
-        self.start_button = ttk.Button(self.buttons, text=self.setting.language.train_start_button, image=self.start_image, command=self.start_train)
-        self.stop_button = ttk.Button(self.buttons, text=self.setting.language.train_stop_button, image=self.stop_image, command=self.stop_train)
-        self.load_button = ttk.Button(self.buttons, text=self.setting.language.train_load_button, image=self.load_image)
+        self.start_button = ttk.Button(self.buttons, text=self.setting[self.language]['start_button'], image=self.start_icon, command=self.start_train)
+        self.stop_button = ttk.Button(self.buttons, text=self.setting[self.language]['stop_button'], image=self.stop_icon, command=self.stop_train)
+        self.continue_button = ttk.Button(self.buttons, text=self.setting[self.language]['continue_button'], image=self.continue_icon)
 
         self.start_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.stop_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.load_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
+        self.continue_button.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         return self.buttons
 
@@ -296,21 +294,20 @@ class TrainFrame(ttk.Frame):
     def make_label_info_input(self, master):
         self.label_info_input = ttk.Frame(master)
         self.label_info_input.rowconfigure((0, 1, 2), weight=1)
-        self.label_info_input.columnconfigure((0, 1, 2), weight=1)
+        self.label_info_input.columnconfigure((1,), weight=1, minsize=8)
 
         self.data_var = tk.StringVar()
         self.train_ratio_var = tk.DoubleVar(value=0.9)
         self.valid_ratio_var = tk.DoubleVar(value=0.1)
 
-        self.data_label = tk.Label(self.label_info_input, text=self.setting.language.data_label)
+        self.data_label = tk.Label(self.label_info_input, text=self.setting[self.language]['dataset_label'])
         self.data_entry = ttk.Entry(self.label_info_input, textvariable=self.data_var)
-        self.data_button = ttk.Button(self.label_info_input, text=self.setting.language.data_entry)
-        self.train_ratio_label = tk.Label(self.label_info_input, text=self.setting.language.train_ratio)
+        self.data_button = ttk.Button(self.label_info_input, text=self.setting[self.language]['dataset_button'])
+        self.train_ratio_label = tk.Label(self.label_info_input, text=self.setting[self.language]['train_ratio'])
         self.train_ratio_spinbox = ttk.Spinbox(self.label_info_input, from_=0, to=1, textvariable=self.train_ratio_var, format='%.1f',increment=0.1)
-        self.valid_ratio_label = tk.Label(self.label_info_input, text=self.setting.language.valid_ratio)
+        self.valid_ratio_label = tk.Label(self.label_info_input, text=self.setting[self.language]['valid_ratio'])
         self.valid_ratio_spinbox = ttk.Spinbox(self.label_info_input, from_=0, to=1, textvariable=self.valid_ratio_var, format='%.1f',increment=0.1)
-        self.register_data_button = ttk.Button(self.label_info_input, text=self.setting.language.train_register_button)
-
+        self.register_data_button = ttk.Button(self.label_info_input, text=self.setting[self.language]['register_button'])
 
         self.data_label.grid(row=0, column=0, sticky=tk.EW)
         self.data_entry.grid(row=0, column=1, sticky=tk.EW)
@@ -341,9 +338,9 @@ class TrainFrame(ttk.Frame):
         self.treeview.column(2, width=80, anchor=tk.CENTER)
         self.treeview.column(3, width=80, anchor=tk.CENTER)
 
-        self.treeview.heading(1, text=self.setting.language.train_treeview_class)
-        self.treeview.heading(2, text=self.setting.language.train_treeview_train)
-        self.treeview.heading(3, text=self.setting.language.train_treeview_valid)
+        self.treeview.heading(1, text=self.setting[self.language]['treeview_heading'][0])
+        self.treeview.heading(2, text=self.setting[self.language]['treeview_heading'][1])
+        self.treeview.heading(3, text=self.setting[self.language]['treeview_heading'][2])
 
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -352,6 +349,12 @@ class TrainFrame(ttk.Frame):
         self.treeview.config(yscrollcommand=self.scrollbar.set)  
 
         return self.label_info_window
+
+    def load_sashpos(self):
+        if self.setting['lr_sashpos'] != self.left_right_panedwindow.sashpos(0) or self.setting['tb_sashpos'] != self.main_window.sashpos(0):
+            self.left_right_panedwindow.sashpos(0, self.setting['lr_sashpos'])
+            self.main_window.sashpos(0, self.setting['tb_sashpos'])
+            self.after(100, self.load_sashpos)
 
     def check_event(self):
         for i in range(100):                                # pass to set speed
@@ -364,51 +367,30 @@ class TrainFrame(ttk.Frame):
 
         self.after(100, self.check_event)    
 
-    def check_connect(self):
-        try:
-            if self.loss_conn is None:
-                self.loss_conn, addr = self.sock.accept()
-                self.loss_conn.setblocking(False)   
-            else:
-                self.log_conn, addr = self.sock.accept()
-                self.log_conn.setblocking(False)           
-                self.train_log = self.log_conn.makefile('r')
-        except:
-            pass
-
-        if (not self.loss_conn is None) and (not self.log_conn is None):
-            self.check_log()
-            self.check_loss()
-            return
-
-        self.after(100, self.check_connect)
-
     def check_log(self):
-        if not self.train_log is None:
+        if self.is_training:
             try:
-                log = self.train_log.read()
+                log = self.log.read()
                 self.thread_queue.put((self.insert_text, (log,)))
             except:
                 pass
+            self.after(100, self.check_log)
         else:
             return
 
-        self.after(100, self.check_log)
-
-    def check_loss(self):
-        if not self.loss_conn is None:
+    def check_output(self):
+        if self.is_training:
             try:
-                bytes = self.loss_conn.recv(4092)
+                bytes = self.output_sock.recv(4092)
                 loss = pickle.loads(bytes)
                 self.losses.append(loss['loss'])
                 self.val_loss.append(loss['val_loss'])
                 self.show_loss()
             except:
                 pass
+            self.after(50, self.check_output)
         else:
             return
-
-        self.after(100, self.check_loss)
 
     def show_loss(self):
         img_buf = io.BytesIO()
@@ -424,8 +406,8 @@ class TrainFrame(ttk.Frame):
 
         plt.savefig(img_buf, format='png')
 
-        self.window_image = Image.open(img_buf)
-        #img_buf.close()
+        self.image = Image.open(img_buf).copy()
+        img_buf.close()
         self.resize_window()
 
     def add_augmentation_item(self):
@@ -434,7 +416,7 @@ class TrainFrame(ttk.Frame):
             if not item in self.augmentation_list:
                 augmentation_item_label = tk.Label(self.augmentation_choose_frame, anchor=tk.W, text=item)
                 augmentation_item_entry = ttk.Entry(self.augmentation_choose_frame)
-                augmentation_item_delete_button = ttk.Button(self.augmentation_choose_frame, image=self.augmentation_delete_image)
+                augmentation_item_delete_button = ttk.Button(self.augmentation_choose_frame, image=self.delete_icon)
 
                 augmentation_item_label.grid(row=len(self.augmentation_list), column=0, sticky=tk.NSEW, ipadx=5)
                 augmentation_item_entry.grid(row=len(self.augmentation_list), column=1, sticky=tk.NSEW, pady=1)
@@ -448,24 +430,42 @@ class TrainFrame(ttk.Frame):
 
                 self.augmentation_combobox_var.set('')
             else:
-                self.insert_text(self.setting.language.train_error_repeat_add+'\n')
+                self.insert_text(self.setting[self.language]['info_repeat_add']+'\n')
 
     def stop_train(self):
-        self.loss_conn.send(b'stop')
-        self.loss_conn.close()
-        self.log_conn.close()
-        self.loss_conn = None
-        self.log_conn = None
-        self.train_log = None
+        self.input_sock.send(b'stop')
+        self.input_sock.close()
+        self.output_sock.close()
+        self.log_sock.close()
+        self.input_sock = None
+        self.output_sock = None
+        self.log_sock = None
+        self.log = None
         self.losses=[]
         self.val_loss=[]
-        self.check_connect()
-
+        self.is_training = False
 
     def start_train(self):
         def call_train():
-            os.system('start D:/Program/Anaconda3/envs/tf2/python.exe {} --config {}'.format(r'classification\train.py', os.path.join(project_dir, 'train_config.yaml')))
+            subprocess.Popen('D:/Program/Anaconda3/envs/tf2/python.exe {} --config {}'.format('classification/train.py', os.path.join(project_dir, 'train_config.yaml')))
         
+            while True:
+                try:
+                    self.input_sock.connect(('localhost', self.servering_port))
+                    self.output_sock.connect(('localhost', self.servering_port))
+                    self.log_sock.connect(('localhost', self.servering_port))
+
+                    self.input_sock.setblocking(False)
+                    self.output_sock.setblocking(False)
+                    self.log_sock.setblocking(False)
+
+                    self.log = self.log_sock.makefile('r')
+                except Exception as e:
+                    time.sleep(0.1)
+                    print(e)
+                else:
+                    break
+
         config = {}
 
         project_dir = self.work_dir_var.get()
@@ -491,9 +491,9 @@ class TrainFrame(ttk.Frame):
         config['height'] = self.height_var.get()
         config['width'] = self.width_var.get()
         config['lr'] = self.lr_var.get()
-        config['batch_size'] = self.batchsize_var.get()
+        config['batch_size'] = self.batchsize_var.get() 
         config['workers'] = self.workers_var.get()
-        config['port'] = self.port
+        config['port'] = self.servering_port
         aug_params = self.get_aug_params()
         config.update(aug_params)
 
@@ -501,7 +501,15 @@ class TrainFrame(ttk.Frame):
             setting = yaml.dump(config)
             fp.write(setting)
 
-        self.insert_text('starting.')
+        self.insert_text(self.setting[self.language]['info_start_training']+'\n')
+
+        self.is_training = True
+        self.input_sock = socket(AF_INET, SOCK_STREAM)
+        self.output_sock = socket(AF_INET, SOCK_STREAM)
+        self.log_sock = socket(AF_INET, SOCK_STREAM)
+        self.check_log()
+        self.check_output()
+
         thread = Thread(target=call_train)
         thread.start()
 
@@ -522,46 +530,46 @@ class TrainFrame(ttk.Frame):
         self.augmentation_items = []
         self.augmentation_list = []
 
-        self.window_image = None
+        self.image = None
         self.resize_window()
 
     def resize_window(self):
         win_width = self.window.winfo_width()
         win_height = self.window.winfo_height()
-        if self.window_image:
-            ratio = min(win_width/self.window_image.width, win_height/self.window_image.height)
-            image = self.window_image.resize((int(ratio * self.window_image.width), int(ratio * self.window_image.height)), Image.LINEAR)
-            self.window_image_resize = ImageTk.PhotoImage(image)
-            self.window.config(image=self.window_image_resize)
+        if self.image:
+            ratio = min(win_width/self.image.width, win_height/self.image.height)
+            image = self.image.resize((int(ratio * self.image.width), int(ratio * self.image.height)), Image.LINEAR)
+            self.resize_image = ImageTk.PhotoImage(image)
+            self.window.config(image=self.resize_image)
         else:
             self.window.config(image='')
 
     def get_aug_params(self):
         kwargs = {}
         for index, item in enumerate(self.augmentation_list):
-            if item == self.setting.language.train_aug_scale:
+            if item == self.setting[self.language]['aug_scale']:
                 kwargs['scale'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_translate_x:
+            if item == self.setting[self.language]['aug_translate_x']:
                 kwargs['translate_percent_x'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_translate_y:
+            if item == self.setting[self.language]['aug_translate_y']:
                 kwargs['translate_percent_y'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_rotate:
+            if item == self.setting[self.language]['aug_rotate']:
                 kwargs['rotate'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_shear:
+            if item == self.setting[self.language]['aug_shear']:
                 kwargs['shear'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_flip_lr:
+            if item == self.setting[self.language]['aug_flip_lr']:
                 kwargs['flip_lr'] = float(self.augmentation_items[index][1].get())
-            if item == self.setting.language.train_aug_flip_ud:
+            if item == self.setting[self.language]['aug_flip_ud']:
                 kwargs['flip_ud'] = float(self.augmentation_items[index][1].get())
-            if item == self.setting.language.train_aug_crop:
+            if item == self.setting[self.language]['aug_crop']:
                 kwargs['crop'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_multiply:
+            if item == self.setting[self.language]['aug_multiply']:
                 kwargs['multiply'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_gaussian_noise:
+            if item == self.setting[self.language]['aug_gaussian_noise']:
                 kwargs['gaussian_noise'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_gaussian_blur:
+            if item == self.setting[self.language]['aug_gaussian_blur']:
                 kwargs['gaussian_blur'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
-            if item == self.setting.language.train_aug_linear_contrast:
+            if item == self.setting[self.language]['aug_linear_contrast']:
                 kwargs['linear_contrast'] = [float(item) for item in self.augmentation_items[index][1].get().split()]
 
         return kwargs
@@ -579,12 +587,16 @@ class TrainFrame(ttk.Frame):
                 image = cv2.imdecode(np.fromfile(os.path.join(dir_path, random_class, image_name), np.uint8), 1)
                 image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
                 image = self.augmentation_transformer(image)
-                self.window_image = Image.fromarray(image)
+                self.image = Image.fromarray(image)
                 self.resize_window()
             except:
-                self.insert_text(self.setting.language.train_error_check_dir+'\n')
+                self.image = None
+                self.resize_window()
+                self.insert_text(self.setting[self.language]['info_invalid_input']+'\n')
         else:
-            self.insert_text(self.setting.language.train_error_no_data+'\n')
+            self.image = None
+            self.resize_window()
+            self.insert_text(self.setting[self.language]['info_invalid_input']+'\n')
 
     def set_data(self, data_var):
         dir_path = askdirectory()
@@ -601,10 +613,10 @@ class TrainFrame(ttk.Frame):
         self.treeview.insert('', tk.END, item, values=values)
 
     def register_data(self):
-        def register_data_thread(data_dir, train_ratio, valid_ratio):
-            train_txt = os.path.join(os.path.dirname(__file__), 'tmp', 'train.txt')
-            valid_txt = os.path.join(os.path.dirname(__file__), 'tmp', 'valid.txt')
-            class_txt = os.path.join(os.path.dirname(__file__), 'tmp', 'class.txt')
+        def register_data_thread(data_dir, work_dir, train_ratio, valid_ratio):
+            train_txt = os.path.join(work_dir, 'train.txt')
+            valid_txt = os.path.join(work_dir, 'valid.txt')
+            class_txt = os.path.join(work_dir, 'class.txt')
             classes = os.listdir(data_dir)
 
             with open(class_txt, 'w', encoding='utf8') as fp:
@@ -629,23 +641,33 @@ class TrainFrame(ttk.Frame):
                         fp2.write(os.path.join(data_dir, item, image)+'\t'+item+'\n')
 
                     self.thread_queue.put((self.insert_treeview, (item, (item, train_num, valid_num))))
-                    self.thread_queue.put((self.insert_text, (self.setting.language.train_register_button+':{}/{}\n'.format(index+1,len(classes)),)))
-
-
-            self.thread_queue.put((self.insert_text, (self.setting.language.train_register_finish+'\n',)))
-
+                    self.thread_queue.put((self.insert_text, (self.setting[self.language]['register_button']+':{}/{}\n'.format(index+1,len(classes)),)))
+                self.thread_queue.put((self.insert_text, (self.setting[self.language]['register_finish']+'\n',)))
 
         data_dir = self.data_var.get()
         train_ratio = self.train_ratio_var.get()
         valid_ratio = self.valid_ratio_var.get()
-
+        work_dir = self.work_dir_var.get()
         if os.path.isdir(data_dir) and os.path.exists(data_dir):
-            for i in self.treeview.get_children():
-                self.treeview.delete(i) 
+            if os.path.isdir(work_dir) and os.path.exists(work_dir):
+                if train_ratio > 0 and valid_ratio > 0 and train_ratio + valid_ratio <= 1:
+                    for i in self.treeview.get_children():
+                        self.treeview.delete(i) 
 
-            thread = Thread(target=register_data_thread, args=(data_dir, train_ratio, valid_ratio))
-            thread.start()
+                    thread = Thread(target=register_data_thread, args=(data_dir, work_dir, train_ratio, valid_ratio))
+                    thread.start()
+                else:
+                    self.insert_text(self.setting[self.language]['info_invalid_ratio']+'\n')
+            else:
+                self.insert_text(self.setting[self.language]['info_invalid_workspace']+'\n')
         else:
-            self.insert_text(self.setting.language.train_error_check_dir+'\n')
+            self.insert_text(self.setting[self.language]['info_invalid_input']+'\n')
+
+    def save_setting(self):
+        lr_sashpos = self.left_right_panedwindow.sashpos(0)
+        tb_sashpos = self.main_window.sashpos(0)
+        self.setting.update({'lr_sashpos': lr_sashpos})
+        self.setting.update({'tb_sashpos': tb_sashpos})
+        yaml.dump(self.setting, open(self.setting_path, 'w', encoding='utf8'))
 
         
